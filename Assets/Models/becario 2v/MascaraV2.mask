@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!319 &31900000
+AvatarMask:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: MascaraV2
+  m_Mask: 01000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000
+  m_Elements:
+  - m_Path: 
+    m_Weight: 1
+  - m_Path: Armature
+    m_Weight: 0
+  - m_Path: Armature/base_bone
+    m_Weight: 0
+  - m_Path: Armature/base_bone/base_mano_der
+    m_Weight: 1
+  - m_Path: Armature/base_bone/base_mano_der/Bone.011
+    m_Weight: 1
+  - m_Path: Armature/base_bone/base_mano_der/Bone.011/dedo_pulgar_der
+    m_Weight: 1
+  - m_Path: Armature/base_bone/base_mano_der/Bone.013
+    m_Weight: 1
+  - m_Path: Armature/base_bone/base_mano_der/Bone.013/dedo_medio_der
+    m_Weight: 1
+  - m_Path: Armature/base_bone/base_mano_der/Bone.015
+    m_Weight: 1
+  - m_Path: Armature/base_bone/base_mano_der/Bone.015/dedo_meniq_der
+    m_Weight: 1
+  - m_Path: Armature/base_bone/base_mano_izq
+    m_Weight: 1
+  - m_Path: Armature/base_bone/base_mano_izq/Bone.004
+    m_Weight: 1
+  - m_Path: Armature/base_bone/base_mano_izq/Bone.004/dedo_pulgar_izq
+    m_Weight: 1
+  - m_Path: Armature/base_bone/base_mano_izq/Bone.006
+    m_Weight: 1
+  - m_Path: Armature/base_bone/base_mano_izq/Bone.006/dedo_medio_der.001
+    m_Weight: 1
+  - m_Path: Armature/base_bone/base_mano_izq/Bone.008
+    m_Weight: 1
+  - m_Path: Armature/base_bone/base_mano_izq/Bone.008/dedo_meniq_der.001
+    m_Weight: 1
+  - m_Path: Armature/base_bone/torso
+    m_Weight: 0
+  - m_Path: Armature/base_bone/torso/cabeza
+    m_Weight: 1
+  - m_Path: Mesh_0
+    m_Weight: 0

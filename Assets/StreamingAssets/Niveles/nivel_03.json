@@ -1,0 +1,14 @@
+{
+  "nivel": 3,
+  "incendios": false,
+  "servidores": [],
+  "oleadas": [
+    { "segundo": 1,   "laptops": ["facil"] },
+    { "segundo": 40,  "laptops": ["facil"] },
+    { "segundo": 75,  "laptops": ["facil", "facil"] },
+    { "segundo": 110, "laptops": ["media"] },
+    { "segundo": 145, "laptops": ["facil", "facil"] },
+    { "segundo": 185, "laptops": ["facil", "media"] },
+    { "segundo": 225, "laptops": ["media"] }
+  ]
+}

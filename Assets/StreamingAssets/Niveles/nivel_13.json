@@ -1,0 +1,17 @@
+{
+  "nivel": 13,
+  "incendios": true,
+  "servidores": [
+    { "id": 1, "segundo": 70 },
+    { "id": 3, "segundo": 170 }
+  ],
+  "oleadas": [
+    { "segundo": 1,   "laptops": ["facil", "media"] },
+    { "segundo": 40,  "laptops": ["dificil"] },
+    { "segundo": 75,  "laptops": ["media", "dificil"] },
+    { "segundo": 115, "laptops": ["muy_dificil"] },
+    { "segundo": 150, "laptops": ["dificil", "media"] },
+    { "segundo": 190, "laptops": ["dificil"] },
+    { "segundo": 225, "laptops": ["media"] }
+  ]
+}
