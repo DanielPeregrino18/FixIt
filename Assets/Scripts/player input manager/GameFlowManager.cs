@@ -11,6 +11,9 @@ public class GameFlowManager : MonoBehaviour
     public GameObject canvasSeleccion;
     public GameObject canvasJuego;
 
+    /// <summary>True mientras la pantalla de selección de personaje (lobby) está visible.</summary>
+    public bool EnLobby => canvasLobby != null && canvasLobby.activeInHierarchy;
+
     void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
@@ -53,9 +56,9 @@ public class GameFlowManager : MonoBehaviour
 
     void Activar(GameObject canvasActivo)
     {
-        if (canvasMenu      != null) canvasMenu.SetActive(canvasActivo      == canvasMenu);
-        if (canvasLobby     != null) canvasLobby.SetActive(canvasActivo     == canvasLobby);
+        if (canvasMenu != null) canvasMenu.SetActive(canvasActivo == canvasMenu);
+        if (canvasLobby != null) canvasLobby.SetActive(canvasActivo == canvasLobby);
         if (canvasSeleccion != null) canvasSeleccion.SetActive(canvasActivo == canvasSeleccion);
-        if (canvasJuego     != null) canvasJuego.SetActive(canvasActivo     == canvasJuego);
+        if (canvasJuego != null) canvasJuego.SetActive(canvasActivo == canvasJuego);
     }
 }

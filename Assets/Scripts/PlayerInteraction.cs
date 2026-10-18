@@ -1,6 +1,9 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+/// <summary>Qué tipo de objeto tiene el jugador en la mano, para elegir la animación correcta.</summary>
+public enum TipoObjetoSostenido { Ninguno, Laptop, Extintor, RAM, HDD, Procesador }
+
 public class PlayerInteraction : MonoBehaviour
 {
     [Header("Identidad del Jugador")]
@@ -24,8 +27,8 @@ public class PlayerInteraction : MonoBehaviour
     public BoxCollider playerCollider;
 
     [Header("Valores sin objeto")]
-    public Vector3 tamañoNormal    = new Vector3(1f, 2f, 1f);
-    public Vector3 centroNormal    = new Vector3(0f, 0f, 0f);
+    public Vector3 tamañoNormal = new Vector3(1f, 2f, 1f);
+    public Vector3 centroNormal = new Vector3(0f, 0f, 0f);
 
     [Header("Valores cargando objeto")]
     public Vector3 tamañoConObjeto = new Vector3(1f, 2f, 1.5f);
@@ -33,11 +36,33 @@ public class PlayerInteraction : MonoBehaviour
 
     // ── Estado detectado por el radar ─────────────────────────────────────────
     private InteractableTable _currentTable;
-    private GameObject        _currentItemOnFloor;
+    private GameObject _currentItemOnFloor;
 
-    private bool        _usingPlayerInput = false;
+    private bool _usingPlayerInput = false;
     private InputAction interactAction;
     private InputAction _useAction;
+
+    // Para detectar cuándo cambia el objeto en mano y actualizar el Animator
+    private GameObject _ultimoHeldItemParaAnim = null;
+
+    [Header("Corrección visual del extintor")]
+    [Tooltip("El modelo del extintor apunta la boquilla al revés — se corrige rotándolo al agarrarlo. Ajusta el eje/ángulo hasta que se vea bien.")]
+    public Vector3 correccionRotacionExtintor = new Vector3(0f, 180f, 0f);
+
+    [Header("Ajuste del martillo (varía por personaje, lo llena CharacterSwapper)")]
+    public Vector3 offsetMartillo = Vector3.zero;
+    public Vector3 rotacionMartillo = Vector3.zero;
+    public float escalaMartillo = 2f;
+
+    [Header("Ajuste de la lata de aire (varía por personaje, lo llena CharacterSwapper)")]
+    public Vector3 offsetLata = Vector3.zero;
+    public Vector3 rotacionLata = Vector3.zero;
+    public float escalaLata = 2f;
+
+    [Header("Ajuste de la taza de café (varía por personaje, lo llena CharacterSwapper)")]
+    public Vector3 offsetTaza = Vector3.zero;
+    public Vector3 rotacionTaza = Vector3.zero;
+    public float escalaTaza = 2f;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -47,9 +72,9 @@ public class PlayerInteraction : MonoBehaviour
         if (pi != null)
         {
             _usingPlayerInput = true;
-            var map      = pi.actions.FindActionMap("Player");
+            var map = pi.actions.FindActionMap("Player");
             interactAction = map.FindAction("Interact");
-            _useAction     = map.FindAction("Secondary");
+            _useAction = map.FindAction("Secondary");
         }
         else
         {
@@ -117,6 +142,7 @@ public class PlayerInteraction : MonoBehaviour
         }
 
         ActualizarUsoExtintor();
+        ActualizarAnimacionSostenido();
     }
 
     // ── Detección ─────────────────────────────────────────────────────────────
@@ -173,7 +199,7 @@ public class PlayerInteraction : MonoBehaviour
     void RecogerDelSuelo(GameObject item)
     {
         isHoldingItem = true;
-        heldItem      = item;
+        heldItem = item;
 
         Vector3 escalaOriginal = item.transform.lossyScale;
         item.transform.SetParent(itemSocket);
@@ -232,10 +258,10 @@ public class PlayerInteraction : MonoBehaviour
 
         Extinguisher extTirado = heldItem.GetComponent<Extinguisher>();
         if (extTirado != null && extTirado.espumaParticles != null)
-            extTirado.espumaParticles.Stop();
+            extTirado.espumaParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
 
         isHoldingItem = false;
-        heldItem      = null;
+        heldItem = null;
     }
 
     // ── Uso del extintor ──────────────────────────────────────────────────────
@@ -251,8 +277,9 @@ public class PlayerInteraction : MonoBehaviour
 
         if (ext.espumaParticles != null)
         {
-            if (usando  && !ext.espumaParticles.isPlaying) ext.espumaParticles.Play();
-            if (!usando &&  ext.espumaParticles.isPlaying) ext.espumaParticles.Stop();
+            if (usando && !ext.espumaParticles.isPlaying) ext.espumaParticles.Play();
+            if (!usando && ext.espumaParticles.isPlaying)
+                ext.espumaParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear); // corte instantáneo, sin dejar que las ya existentes se desvanezcan solas
         }
 
         if (!usando) return;
@@ -265,11 +292,64 @@ public class PlayerInteraction : MonoBehaviour
             IExtinguishable objetivo = col.GetComponent<IExtinguishable>();
             if (objetivo == null || !objetivo.EstaEnPeligro()) continue;
 
-            Vector3 dir    = (col.transform.position - castPoint.position).normalized;
-            float   angulo = Vector3.Angle(castPoint.forward, dir);
+            Vector3 dir = (col.transform.position - castPoint.position).normalized;
+            float angulo = Vector3.Angle(castPoint.forward, dir);
             if (angulo <= ext.anguloEfecto)
                 objetivo.RecibirChorroExtintor(Time.deltaTime);
         }
+    }
+
+    /// <summary>
+    /// Revisa cada frame si cambió el objeto en la mano y actualiza el Animator
+    /// con qué tipo es (Laptop, Extintor, RAM, HDD, Procesador o Ninguno).
+    /// Funciona sin importar en qué mesa/script se haya recogido el objeto.
+    /// </summary>
+    void ActualizarAnimacionSostenido()
+    {
+        if (heldItem == _ultimoHeldItemParaAnim) return;
+        _ultimoHeldItemParaAnim = heldItem;
+
+        if (anim == null) return;
+
+        TipoObjetoSostenido tipo = TipoObjetoSostenido.Ninguno;
+
+        if (heldItem != null)
+        {
+            if (heldItem.GetComponent<Laptop>() != null)
+            {
+                tipo = TipoObjetoSostenido.Laptop;
+            }
+            else if (heldItem.GetComponent<Extinguisher>() != null)
+            {
+                tipo = TipoObjetoSostenido.Extintor;
+            }
+            else
+            {
+                HardwarePiece pieza = heldItem.GetComponent<HardwarePiece>();
+                if (pieza != null)
+                {
+                    tipo = pieza.tipoPieza switch
+                    {
+                        HardwarePiece.TipoPieza.RAM => TipoObjetoSostenido.RAM,
+                        HardwarePiece.TipoPieza.HDD => TipoObjetoSostenido.HDD,
+                        HardwarePiece.TipoPieza.CPU => TipoObjetoSostenido.Procesador,
+                        _ => TipoObjetoSostenido.Ninguno
+                    };
+                }
+            }
+        }
+
+        anim.SetInteger("TipoObjeto", (int)tipo);
+        anim.SetBool("isHolding", heldItem != null); // se mantiene por compatibilidad con lo ya existente
+
+        // El modelo del extintor tiene la boquilla apuntando al revés —
+        // se corrige solo mientras está en la mano (no afecta cómo se ve
+        // parado en su estación o tirado en el suelo, eso lo maneja cada
+        // script por su cuenta al soltarlo).
+        if (tipo == TipoObjetoSostenido.Extintor && heldItem != null)
+            heldItem.transform.localRotation = Quaternion.Euler(correccionRotacionExtintor);
+
+        Debug.Log($"PlayerInteraction: Enviando al Animator TipoObjeto={(int)tipo} ({tipo})");
     }
 
     // ── Gizmos y utilidades ───────────────────────────────────────────────────
@@ -277,16 +357,48 @@ public class PlayerInteraction : MonoBehaviour
     void OnDrawGizmos()
     {
         if (castPoint == null) return;
-        Gizmos.color  = Color.cyan;
+        Gizmos.color = Color.cyan;
         Gizmos.matrix = Matrix4x4.TRS(castPoint.position, castPoint.rotation, Vector3.one);
         Gizmos.DrawWireCube(Vector3.forward * (castDistance / 2),
                             new Vector3(boxSize.x, boxSize.y, castDistance));
+        Gizmos.matrix = Matrix4x4.identity;
+
+        // Cono real de efecto del extintor — solo visible mientras lo sostienes,
+        // para comparar el alcance real contra cómo se ve el chorro de partículas.
+        if (heldItem != null)
+        {
+            Extinguisher ext = heldItem.GetComponent<Extinguisher>();
+            if (ext != null)
+            {
+                Gizmos.color = new Color(1f, 0.5f, 0f); // naranja, para distinguirlo del radar cian
+                DibujarConoExtintor(ext.radioEfecto, ext.anguloEfecto);
+            }
+        }
+    }
+
+    void DibujarConoExtintor(float radio, float angulo)
+    {
+        Vector3 origen = castPoint.position;
+        Vector3 adelante = castPoint.forward;
+        int segmentos = 12;
+
+        Vector3 anterior = Quaternion.AngleAxis(-angulo, Vector3.up) * adelante * radio;
+        Gizmos.DrawLine(origen, origen + anterior);
+
+        for (int i = 1; i <= segmentos; i++)
+        {
+            float t = Mathf.Lerp(-angulo, angulo, (float)i / segmentos);
+            Vector3 punto = Quaternion.AngleAxis(t, Vector3.up) * adelante * radio;
+            Gizmos.DrawLine(origen + anterior, origen + punto);
+            Gizmos.DrawLine(origen, origen + punto);
+            anterior = punto;
+        }
     }
 
     public void AjustarCollider(bool tieneObjeto)
     {
         if (playerCollider == null) return;
-        playerCollider.size   = tieneObjeto ? tamañoConObjeto : tamañoNormal;
+        playerCollider.size = tieneObjeto ? tamañoConObjeto : tamañoNormal;
         playerCollider.center = tieneObjeto ? centroConObjeto : centroNormal;
     }
 }

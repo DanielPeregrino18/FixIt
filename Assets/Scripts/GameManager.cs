@@ -46,6 +46,22 @@ public class GameManager : MonoBehaviour
     public GameObject botonContinuar;
     public GameObject botonSalirMenu;
 
+    [Header("UI - Fondo y Tabla (Resultados)")]
+    [Tooltip("Imagen de fondo a pantalla completa que se muestra al ganar")]
+    public GameObject fondoVictoria;
+    [Tooltip("Imagen de fondo a pantalla completa que se muestra al perder")]
+    public GameObject fondoDerrota;
+    [Tooltip("El Image de la tabla (clipboard) del centro; cambia de sprite según el resultado")]
+    public Image imagenTabla;
+    public Sprite spriteTablaVictoria;
+    public Sprite spriteTablaDerrota;
+
+    [Header("UI - Estrellas (Resultados)")]
+    [Tooltip("Sprite de estrella ganada")]
+    public Sprite spriteEstrellaLlena;
+    [Tooltip("Sprite de estrella no ganada")]
+    public Sprite spriteEstrellaVacia;
+
     [Header("UI - Estilo de botones (Resultados)")]
     [Tooltip("El botón en la posición 0 de la lista de activos usa este sprite (acción recomendada)")]
     public Sprite spriteBotonPrimario;
@@ -79,29 +95,29 @@ public class GameManager : MonoBehaviour
     };
 
     // ── Estado interno ────────────────────────────────────────────────────────
-    private float _timerActual       = 0f;
+    private float _timerActual = 0f;
 
     /// <summary>Segundos transcurridos desde que inició el nivel (para que otros scripts, como Server, programen eventos).</summary>
     public float TiempoTranscurrido => _timerActual;
 
     // NUEVO: el nivel ya NO empieza activo por defecto — espera a IniciarNivel()
-    private bool  _nivelActivo       = false;
-    private bool  _hordaActivada     = false;
-    private int   _nivelActualNumero = 0; // para guardar el progreso al terminar
+    private bool _nivelActivo = false;
+    private bool _hordaActivada = false;
+    private int _nivelActualNumero = 0; // para guardar el progreso al terminar
 
     // Contadores
-    private int _laptopsEntregadas   = 0;
-    private int _laptopsTotales  = 0; // total que llegaron en el nivel
-    private int _laptopsPerdidas     = 0;
+    private int _laptopsEntregadas = 0;
+    private int _laptopsTotales = 0; // total que llegaron en el nivel
+    private int _laptopsPerdidas = 0;
     private int _piezasDesperdiciadas = 0;
 
     // Horario: 8 AM a 4 PM = 8 horas
     private const int HORA_INICIO = 8;
-    private const int HORA_FIN    = 16;
+    private const int HORA_FIN = 16;
 
     // ── Navegación de la pantalla de Resultados (flechas + confirmar) ─────────
     private List<GameObject> _botonesResultadosActivos = new List<GameObject>();
-    private int   _indiceResultados = 0;
+    private int _indiceResultados = 0;
     private float _timerNavResultados = 0f;
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -122,7 +138,7 @@ public class GameManager : MonoBehaviour
         // Posicionar la marca de horda en la barra (solo visual, no depende del timer)
         if (marcaHordaUI != null)
         {
-            RectTransform rt      = marcaHordaUI.GetComponent<RectTransform>();
+            RectTransform rt = marcaHordaUI.GetComponent<RectTransform>();
             RectTransform barraRT = barraProgreso.GetComponent<RectTransform>();
             if (rt != null && barraRT != null)
             {
@@ -181,14 +197,14 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void IniciarNivel(int numeroNivel = 0)
     {
-        _timerActual         = 0f;
-        _hordaActivada       = false;
-        _laptopsEntregadas   = 0;
-        _laptopsTotales      = 0;
-        _laptopsPerdidas     = 0;
+        _timerActual = 0f;
+        _hordaActivada = false;
+        _laptopsEntregadas = 0;
+        _laptopsTotales = 0;
+        _laptopsPerdidas = 0;
         _piezasDesperdiciadas = 0;
-        _nivelActivo         = true;
-        _nivelActualNumero   = numeroNivel;
+        _nivelActivo = true;
+        _nivelActualNumero = numeroNivel;
 
         Time.timeScale = 1f; // por si venía en pausa de un nivel anterior
         if (pantallaResultados != null) pantallaResultados.SetActive(false);
@@ -228,6 +244,7 @@ public class GameManager : MonoBehaviour
         if (!_nivelActivo) return;
         _laptopsPerdidas++;
         ActualizarUI();
+        // GestureController.MostrarGestoATodos(TipoGesto.Estresado); // pendiente: integrar sistema de gestos
         Debug.Log($"GameManager: Laptop perdida. Total perdidas: {_laptopsPerdidas}");
 
         if (_laptopsPerdidas >= maxLaptopsPermitidas)
@@ -256,12 +273,12 @@ public class GameManager : MonoBehaviour
         if (textoHora == null) return;
 
         // Interpolar entre 8:00 y 16:00 según el progreso
-        float horasTotales  = HORA_FIN - HORA_INICIO; // 8 horas
-        float horaActual    = HORA_INICIO + (horasTotales * progreso);
-        int   horas         = Mathf.FloorToInt(horaActual);
-        int   minutos       = Mathf.FloorToInt((horaActual - horas) * 60f);
-        string ampm         = horas < 12 ? "AM" : "PM";
-        int    horas12      = horas > 12 ? horas - 12 : horas;
+        float horasTotales = HORA_FIN - HORA_INICIO; // 8 horas
+        float horaActual = HORA_INICIO + (horasTotales * progreso);
+        int horas = Mathf.FloorToInt(horaActual);
+        int minutos = Mathf.FloorToInt((horaActual - horas) * 60f);
+        string ampm = horas < 12 ? "AM" : "PM";
+        int horas12 = horas > 12 ? horas - 12 : horas;
 
         textoHora.text = $"{horas12}:{minutos:D2} {ampm}";
     }
@@ -350,12 +367,12 @@ public class GameManager : MonoBehaviour
 
         if (_laptopsTotales == 0) return 1;
 
-        bool entregoAlgo    = _laptopsEntregadas > 0;
-        bool cienPorCiento  = _laptopsEntregadas == _laptopsTotales;
+        bool entregoAlgo = _laptopsEntregadas > 0;
+        bool cienPorCiento = _laptopsEntregadas == _laptopsTotales;
         bool sinDesperdicio = _piezasDesperdiciadas == 0;
 
-        if (cienPorCiento && sinDesperdicio)   return 3;
-        if (sinDesperdicio && entregoAlgo)     return 2;
+        if (cienPorCiento && sinDesperdicio) return 3;
+        if (sinDesperdicio && entregoAlgo) return 2;
         return 1;
     }
 
@@ -372,12 +389,27 @@ public class GameManager : MonoBehaviour
                 textoResultado.text = "¡Turno completado!";
         }
 
-        // Activar estrellas
+        // Fondo y tabla según victoria / derrota
+        if (fondoVictoria != null) fondoVictoria.SetActive(!esGameOver);
+        if (fondoDerrota != null) fondoDerrota.SetActive(esGameOver);
+        if (imagenTabla != null)
+        {
+            Sprite tabla = esGameOver ? spriteTablaDerrota : spriteTablaVictoria;
+            if (tabla != null) imagenTabla.sprite = tabla;
+        }
+
+        // Estrellas: siempre visibles las 3, llena o vacía según lo ganado
         if (estrellas != null)
         {
             for (int i = 0; i < estrellas.Length; i++)
-                if (estrellas[i] != null)
-                    estrellas[i].SetActive(i < estrellasGanadas);
+            {
+                if (estrellas[i] == null) continue;
+                estrellas[i].SetActive(true);
+                Image imgEstrella = estrellas[i].GetComponent<Image>();
+                if (imgEstrella == null) continue;
+                Sprite s = (i < estrellasGanadas) ? spriteEstrellaLlena : spriteEstrellaVacia;
+                if (s != null) imgEstrella.sprite = s;
+            }
         }
 
         // Mensaje aleatorio según el resultado
@@ -432,14 +464,15 @@ public class GameManager : MonoBehaviour
         // y recibe el sprite "primario" — el resto usa el sprite secundario.
         _botonesResultadosActivos.Clear();
         if (!esGameOver && botonContinuar != null) _botonesResultadosActivos.Add(botonContinuar);
-        if (botonReintentar != null)               _botonesResultadosActivos.Add(botonReintentar);
-        if (botonSalirMenu != null)                 _botonesResultadosActivos.Add(botonSalirMenu);
+        if (botonReintentar != null) _botonesResultadosActivos.Add(botonReintentar);
+        if (botonSalirMenu != null) _botonesResultadosActivos.Add(botonSalirMenu);
 
         for (int i = 0; i < _botonesResultadosActivos.Count; i++)
         {
             Image img = _botonesResultadosActivos[i].GetComponent<Image>();
             if (img == null) continue;
-            img.sprite = (i == 0) ? spriteBotonPrimario : spriteBotonSecundario;
+            Sprite elegido = (i == 0) ? spriteBotonPrimario : spriteBotonSecundario;
+            if (elegido != null) img.sprite = elegido; // si el campo está vacío, se respeta el sprite propio del botón
         }
 
         // Salir al Menú siempre es rojo, sin importar en qué posición quedó
@@ -464,7 +497,7 @@ public class GameManager : MonoBehaviour
 
         if (Keyboard.current != null)
         {
-            if (Keyboard.current.upArrowKey.wasPressedThisFrame)   dir = -1;
+            if (Keyboard.current.upArrowKey.wasPressedThisFrame) dir = -1;
             if (Keyboard.current.downArrowKey.wasPressedThisFrame) dir = 1;
         }
 
@@ -472,14 +505,14 @@ public class GameManager : MonoBehaviour
         {
             foreach (Gamepad gp in Gamepad.all)
             {
-                if (gp.dpad.up.wasPressedThisFrame)   { dir = -1; break; }
-                if (gp.dpad.down.wasPressedThisFrame) { dir = 1;  break; }
+                if (gp.dpad.up.wasPressedThisFrame) { dir = -1; break; }
+                if (gp.dpad.down.wasPressedThisFrame) { dir = 1; break; }
 
                 if (_timerNavResultados <= 0f)
                 {
                     Vector2 stick = gp.leftStick.ReadValue();
-                    if (stick.y > 0.5f)      { dir = -1; break; }
-                    else if (stick.y < -0.5f) { dir = 1;  break; }
+                    if (stick.y > 0.5f) { dir = -1; break; }
+                    else if (stick.y < -0.5f) { dir = 1; break; }
                 }
             }
         }
@@ -563,7 +596,7 @@ public class GameManager : MonoBehaviour
     public void SalirAlMenu()
     {
         Time.timeScale = 1f;
-        _nivelActivo    = false;
+        _nivelActivo = false;
 
         if (WaveManager.Instance != null)
             WaveManager.Instance.DetenerNivel();

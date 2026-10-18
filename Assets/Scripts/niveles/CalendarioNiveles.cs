@@ -44,26 +44,51 @@ public class CalendarioNiveles : MonoBehaviour
     private class CeldaNivelInfo
     {
         public GameObject celda;
-        public int        numeroNivel;
-        public bool       completado;
-        public Outline    outline;
-        public Transform  iconoJugar;
-        public Transform  iconoCompletado;
+        public int numeroNivel;
+        public bool completado;
+        public Outline outline;
+        public Transform iconoJugar;
+        public Transform iconoCompletado;
     }
 
     private List<CeldaNivelInfo> _celdasNavegables = new List<CeldaNivelInfo>();
-    private int   _cursorIndex   = 0;
+    private int _cursorIndex = 0;
     private float _timerJoystick = 0f;
+    private float _timerEntrada = 0f;
+
+    [Header("Volver a selección de personaje")]
+    [Tooltip("Tiempo (seg) tras aparecer esta pantalla durante el cual se ignora Esc / B")]
+    public float retrasoEntrada = 0.3f;
 
     // ─────────────────────────────────────────────────────────────────────────
 
     void OnEnable()
     {
+        _timerEntrada = retrasoEntrada;
         GenerarCalendario();
     }
 
     void Update()
     {
+        _timerEntrada -= Time.unscaledDeltaTime;
+
+        // Esc (teclado) o B (botón Este) de cualquier control → volver a selección de personaje
+        if (_timerEntrada <= 0f)
+        {
+            bool volver = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
+            if (!volver)
+            {
+                foreach (Gamepad gp in Gamepad.all)
+                    if (gp.buttonEast.wasPressedThisFrame) { volver = true; break; }
+            }
+
+            if (volver && LobbyManager.Instance != null)
+            {
+                LobbyManager.Instance.VolverASeleccionDePersonaje();
+                return;
+            }
+        }
+
         if (_celdasNavegables.Count == 0) return;
 
         _timerJoystick -= Time.deltaTime;
@@ -73,10 +98,10 @@ public class CalendarioNiveles : MonoBehaviour
         // Teclado — un solo paso por pulsación
         if (Keyboard.current != null)
         {
-            if (Keyboard.current.leftArrowKey.wasPressedThisFrame)  { dir = new Vector2Int(-1, 0); moverse = true; }
-            if (Keyboard.current.rightArrowKey.wasPressedThisFrame) { dir = new Vector2Int(1, 0);   moverse = true; }
-            if (Keyboard.current.upArrowKey.wasPressedThisFrame)    { dir = new Vector2Int(0, -1);  moverse = true; }
-            if (Keyboard.current.downArrowKey.wasPressedThisFrame)  { dir = new Vector2Int(0, 1);   moverse = true; }
+            if (Keyboard.current.leftArrowKey.wasPressedThisFrame) { dir = new Vector2Int(-1, 0); moverse = true; }
+            if (Keyboard.current.rightArrowKey.wasPressedThisFrame) { dir = new Vector2Int(1, 0); moverse = true; }
+            if (Keyboard.current.upArrowKey.wasPressedThisFrame) { dir = new Vector2Int(0, -1); moverse = true; }
+            if (Keyboard.current.downArrowKey.wasPressedThisFrame) { dir = new Vector2Int(0, 1); moverse = true; }
         }
 
         // Cualquier control conectado — D-pad (un paso) o joystick (con delay)
@@ -84,18 +109,18 @@ public class CalendarioNiveles : MonoBehaviour
         {
             foreach (Gamepad gp in Gamepad.all)
             {
-                if (gp.dpad.left.wasPressedThisFrame)  { dir = new Vector2Int(-1, 0); moverse = true; break; }
-                if (gp.dpad.right.wasPressedThisFrame) { dir = new Vector2Int(1, 0);   moverse = true; break; }
-                if (gp.dpad.up.wasPressedThisFrame)    { dir = new Vector2Int(0, -1);  moverse = true; break; }
-                if (gp.dpad.down.wasPressedThisFrame)  { dir = new Vector2Int(0, 1);   moverse = true; break; }
+                if (gp.dpad.left.wasPressedThisFrame) { dir = new Vector2Int(-1, 0); moverse = true; break; }
+                if (gp.dpad.right.wasPressedThisFrame) { dir = new Vector2Int(1, 0); moverse = true; break; }
+                if (gp.dpad.up.wasPressedThisFrame) { dir = new Vector2Int(0, -1); moverse = true; break; }
+                if (gp.dpad.down.wasPressedThisFrame) { dir = new Vector2Int(0, 1); moverse = true; break; }
 
                 if (_timerJoystick <= 0f)
                 {
                     Vector2 stick = gp.leftStick.ReadValue();
-                    if      (stick.x < -0.5f) { dir = new Vector2Int(-1, 0); moverse = true; }
-                    else if (stick.x >  0.5f) { dir = new Vector2Int(1, 0);   moverse = true; }
-                    else if (stick.y >  0.5f) { dir = new Vector2Int(0, -1);  moverse = true; }
-                    else if (stick.y < -0.5f) { dir = new Vector2Int(0, 1);   moverse = true; }
+                    if (stick.x < -0.5f) { dir = new Vector2Int(-1, 0); moverse = true; }
+                    else if (stick.x > 0.5f) { dir = new Vector2Int(1, 0); moverse = true; }
+                    else if (stick.y > 0.5f) { dir = new Vector2Int(0, -1); moverse = true; }
+                    else if (stick.y < -0.5f) { dir = new Vector2Int(0, 1); moverse = true; }
                 }
                 if (moverse) break;
             }
@@ -171,16 +196,16 @@ public class CalendarioNiveles : MonoBehaviour
         if (textoNumero != null) textoNumero.text = diaDelMes.ToString();
 
         Transform contenedorEstrellas = celda.transform.Find("Estrellas");
-        Transform iconoCandado        = celda.transform.Find("IconoCandado");
-        Transform iconoJugar          = celda.transform.Find("IconoJugar");
-        Transform iconoCompletado     = celda.transform.Find("IconoCompletado");
+        Transform iconoCandado = celda.transform.Find("IconoCandado");
+        Transform iconoJugar = celda.transform.Find("IconoJugar");
+        Transform iconoCompletado = celda.transform.Find("IconoCompletado");
 
         int estrellas = ProgressManager.Instance != null
             ? ProgressManager.Instance.ObtenerEstrellas(numeroNivel)
             : 0;
 
         bool desbloqueado = numeroNivel <= nivelDesbloqueado;
-        bool completado    = estrellas > 0;
+        bool completado = estrellas > 0;
 
         Button boton = celda.GetComponent<Button>();
 
@@ -190,14 +215,14 @@ public class CalendarioNiveles : MonoBehaviour
 
         if (!desbloqueado)
         {
-            if (iconoCandado    != null) iconoCandado.gameObject.SetActive(true);
+            if (iconoCandado != null) iconoCandado.gameObject.SetActive(true);
             if (iconoCompletado != null) iconoCompletado.gameObject.SetActive(false);
             if (contenedorEstrellas != null) contenedorEstrellas.gameObject.SetActive(false);
             if (boton != null) boton.interactable = false;
         }
         else if (completado)
         {
-            if (iconoCandado    != null) iconoCandado.gameObject.SetActive(false);
+            if (iconoCandado != null) iconoCandado.gameObject.SetActive(false);
             if (iconoCompletado != null) iconoCompletado.gameObject.SetActive(true); // se oculta luego si queda con el foco
             MostrarEstrellas(contenedorEstrellas, estrellas);
             if (boton != null) boton.interactable = true;
@@ -206,7 +231,7 @@ public class CalendarioNiveles : MonoBehaviour
         {
             // Desbloqueado, sin jugar todavía: vacío por defecto (nada al centro)
             // hasta que el cursor pase por aquí.
-            if (iconoCandado    != null) iconoCandado.gameObject.SetActive(false);
+            if (iconoCandado != null) iconoCandado.gameObject.SetActive(false);
             if (iconoCompletado != null) iconoCompletado.gameObject.SetActive(false);
             if (contenedorEstrellas != null) contenedorEstrellas.gameObject.SetActive(false);
             if (boton != null) boton.interactable = true;
@@ -227,11 +252,11 @@ public class CalendarioNiveles : MonoBehaviour
         {
             _celdasNavegables.Add(new CeldaNivelInfo
             {
-                celda           = celda,
-                numeroNivel     = numeroNivel,
-                completado      = completado,
-                outline         = outline,
-                iconoJugar      = iconoJugar,
+                celda = celda,
+                numeroNivel = numeroNivel,
+                completado = completado,
+                outline = outline,
+                iconoJugar = iconoJugar,
                 iconoCompletado = iconoCompletado
             });
         }
@@ -252,7 +277,7 @@ public class CalendarioNiveles : MonoBehaviour
     {
         int nuevoIndex = _cursorIndex;
 
-        if (dir.x != 0)      nuevoIndex = _cursorIndex + dir.x;
+        if (dir.x != 0) nuevoIndex = _cursorIndex + dir.x;
         else if (dir.y != 0) nuevoIndex = _cursorIndex + dir.y * diasPorFila;
 
         nuevoIndex = Mathf.Clamp(nuevoIndex, 0, _celdasNavegables.Count - 1);
@@ -271,7 +296,7 @@ public class CalendarioNiveles : MonoBehaviour
             bool esFoco = i == _cursorIndex;
             CeldaNivelInfo info = _celdasNavegables[i];
 
-            if (info.outline    != null) info.outline.enabled = esFoco;
+            if (info.outline != null) info.outline.enabled = esFoco;
             if (info.iconoJugar != null) info.iconoJugar.gameObject.SetActive(esFoco);
 
             // Si el día ya estaba completado, su "X" se oculta mientras el cursor

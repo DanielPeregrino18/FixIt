@@ -13,6 +13,18 @@ public class DeliveryZone : InteractableTable
     [Tooltip("Segundos antes de destruir la laptop una vez entregada")]
     public float tiempoDestruccion = 4f;
 
+    [Header("Iconos de resultado (aparecen flotando sobre la laptop al entregarla)")]
+    public Sprite iconoCorrecto;
+    public Sprite iconoIncorrecto;
+    [Tooltip("Qué tan arriba de la laptop aparece el ícono")]
+    public float alturaIcono = 1f;
+    [Tooltip("Tamaño del ícono en pantalla")]
+    public float tamanoIcono = 60f;
+    [Tooltip("Rotación extra para corregir la inclinación de la palomita")]
+    public Vector3 rotacionIconoCorrecto = Vector3.zero;
+    [Tooltip("Rotación extra para corregir la inclinación de la tacha")]
+    public Vector3 rotacionIconoIncorrecto = Vector3.zero;
+
     // ─────────────────────────────────────────────────────────────────────────
 
     public override void Interact(PlayerInteraction player)
@@ -42,6 +54,12 @@ public class DeliveryZone : InteractableTable
         GameObject laptop = player.heldItem;
         bool estaCompleta = laptopScript.EstaLista();
 
+        // Mostrar la palomita o la tacha flotando sobre la laptop
+        Vector3 posicionIcono = tableSocket != null ? tableSocket.position : laptop.transform.position;
+        IconoFlotanteTemporal.Mostrar(posicionIcono, estaCompleta ? iconoCorrecto : iconoIncorrecto,
+                                      alturaSobrePosicion: alturaIcono, tamano: tamanoIcono,
+                                      rotacionExtra: estaCompleta ? rotacionIconoCorrecto : rotacionIconoIncorrecto);
+
         // Registrar en el GameManager
         if (GameManager.Instance != null)
         {
@@ -59,7 +77,7 @@ public class DeliveryZone : InteractableTable
 
         // Soltar la laptop del jugador
         player.isHoldingItem = false;
-        player.heldItem      = null;
+        player.heldItem = null;
         if (player.anim != null) player.anim.SetBool("isHolding", false);
         player.AjustarCollider(false);
 
@@ -78,7 +96,7 @@ public class DeliveryZone : InteractableTable
         Rigidbody rb = laptop.GetComponent<Rigidbody>();
         if (rb != null)
         {
-            rb.isKinematic    = false;
+            rb.isKinematic = false;
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
         }
@@ -89,21 +107,5 @@ public class DeliveryZone : InteractableTable
 
         // Destruir después de unos segundos cuando salga de escena
         Destroy(laptop, tiempoDestruccion);
-    }
-
-    protected override void UpdateVisuals()
-    {
-        if (tableRenderer == null) return;
-
-        if (_playersLooking.Count > 0)
-        {
-            tableRenderer.material.EnableKeyword("_EMISSION");
-            tableRenderer.material.SetColor("_EmissionColor", 
-                Color.white * 0.15f);
-        }
-        else
-        {
-            tableRenderer.material.DisableKeyword("_EMISSION");
-        }
     }
 }

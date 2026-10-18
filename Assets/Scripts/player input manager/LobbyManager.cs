@@ -7,23 +7,27 @@ public class LobbyManager : MonoBehaviour
     public static LobbyManager Instance { get; private set; }
 
     [Header("Personajes disponibles")]
-    public string[] nombresPersonajes = { "Carlos", "Memo", "Andrés", "Luis" };
+    public string[] nombresPersonajes = { "Steve", "Mark", "Vill", "Alan" };
     public GameObject[] prefabsPersonajes;
+
+    [Tooltip("MISMO ORDEN que Nombres Personajes / Prefabs Personajes — revisa y corrige aquí si no coincide")]
+    public string[] apodosPersonajes = { "Panic Expert", "Network Guy", "The Analyst", "The Intern" };
 
     [Header("Secciones del lobby (una por cuadrante)")]
     public LobbySection[] secciones;
 
-    [Header("Configuración")]
-    public float timerDesconexion = 10f;
+    [Header("Salir del lobby")]
+    [Tooltip("Tiempo (seg) tras entrar al lobby durante el cual se ignora Esc / B para volver al menú")]
+    public float retrasoSalirLobbyVacio = 0.3f;
 
     [Header("Puntos de spawn en el nivel")]
     public Transform[] _spawnPoints;
 
     // ── Estado interno ────────────────────────────────────────────────────────
-    private Dictionary<int, PlayerData> _jugadores             = new Dictionary<int, PlayerData>();
-    private int[]   _personajesSeleccionados                   = new int[4];
-    private float[] _timersDesconexion                         = new float[4];
-    private bool[]  _desconectando                             = new bool[4];
+    private Dictionary<int, PlayerData> _jugadores = new Dictionary<int, PlayerData>();
+    private int[] _personajesSeleccionados = new int[4];
+    private bool _lobbyEstabaVisible = false;
+    private float _timerLobbyVacio = 0f;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -36,23 +40,34 @@ public class LobbyManager : MonoBehaviour
     void Start()
     {
         for (int i = 0; i < 4; i++)
-        {
             _personajesSeleccionados[i] = -1;
-            _timersDesconexion[i]       = 0f;
-            _desconectando[i]           = false;
-        }
+
         Debug.Log("LobbyManager: Listo para recibir jugadores.");
     }
 
     void Update()
     {
-        for (int i = 0; i < 4; i++)
+        // Lobby vacío (nadie se ha unido): Esc / B de cualquier dispositivo regresa al menú
+        bool lobbyVisible = GameFlowManager.Instance != null && GameFlowManager.Instance.EnLobby;
+
+        if (lobbyVisible && !_lobbyEstabaVisible)
+            _timerLobbyVacio = retrasoSalirLobbyVacio; // acaba de aparecer el lobby
+
+        _lobbyEstabaVisible = lobbyVisible;
+        if (!lobbyVisible) return;
+
+        _timerLobbyVacio -= Time.unscaledDeltaTime;
+        if (_timerLobbyVacio > 0f || _jugadores.Count > 0) return;
+
+        bool salir = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
+        if (!salir)
         {
-            if (!_desconectando[i]) continue;
-            _timersDesconexion[i] -= Time.deltaTime;
-            if (_timersDesconexion[i] <= 0f)
-                ExpulsarJugador(i + 1);
+            foreach (Gamepad gp in Gamepad.all)
+                if (gp.buttonEast.wasPressedThisFrame) { salir = true; break; }
         }
+
+        if (salir)
+            GameFlowManager.Instance.MostrarMenu();
     }
 
     // ── Registro de jugadores (llamado desde PlayerJoinHandler) ──────────────
@@ -64,9 +79,8 @@ public class LobbyManager : MonoBehaviour
 
         if (id > 4) return;
 
-        string dispositivo        = playerInput.currentControlScheme;
-        _jugadores[id]            = new PlayerData(id, dispositivo);
-        _desconectando[id - 1]    = false;
+        string dispositivo = playerInput.currentControlScheme;
+        _jugadores[id] = new PlayerData(id, dispositivo);
 
         // Mover al spawn point
         if (_spawnPoints != null && id <= _spawnPoints.Length && _spawnPoints[id - 1] != null)
@@ -88,8 +102,26 @@ public class LobbyManager : MonoBehaviour
 
     // ── API para LobbySection ─────────────────────────────────────────────────
 
-    public int    TotalPersonajes()      => nombresPersonajes.Length;
+    public int TotalPersonajes() => nombresPersonajes.Length;
     public string NombrePersonaje(int i) => nombresPersonajes[i];
+    public string ApodoPersonaje(int i) => (i >= 0 && i < apodosPersonajes.Length) ? apodosPersonajes[i] : "";
+
+    /// <summary>Prefab directo por índice — usado para la vista previa en vivo mientras se elige.</summary>
+    public GameObject GetPrefabPorIndice(int index)
+    {
+        if (index < 0 || index >= prefabsPersonajes.Length) return null;
+        return prefabsPersonajes[index];
+    }
+
+    /// <summary>Foto estática del personaje (la misma que ya usa el HUD), para la vista previa del lobby.</summary>
+    public Sprite GetFotoPersonaje(int index)
+    {
+        GameObject prefab = GetPrefabPorIndice(index);
+        if (prefab == null) return null;
+
+        CharacterReference charRef = prefab.GetComponent<CharacterReference>();
+        return charRef != null ? charRef.fotoPersonaje : null;
+    }
 
     public bool PersonajeBloqueado(int personajeIndex, int jugadorIdExcluido)
     {
@@ -105,33 +137,60 @@ public class LobbyManager : MonoBehaviour
     {
         _personajesSeleccionados[jugadorId - 1] = personajeIndex;
         Debug.Log($"LobbyManager: Jugador {jugadorId} listo con {nombresPersonajes[personajeIndex]}");
+        RefrescarBloqueoTodas();
         VerificarTodosListos();
     }
 
     public void OnJugadorCancelóListo(int jugadorId)
     {
         _personajesSeleccionados[jugadorId - 1] = -1;
+        RefrescarBloqueoTodas();
     }
 
-    public void OnJugadorQuiereSalir(int jugadorId)
+    /// <summary>Actualiza el blanco y negro / overlay de todas las secciones activas.</summary>
+    void RefrescarBloqueoTodas()
+    {
+        for (int i = 0; i < secciones.Length; i++)
+            if (secciones[i] != null)
+                secciones[i].RefrescarBloqueo();
+    }
+
+    /// <summary>
+    /// El jugador pulsó Esc / B mientras elegía personaje: sale de la selección al instante.
+    /// Su personaje se destruye (libera su lugar y su dispositivo) y su sección vuelve a
+    /// "Presiona A para unirse". Los demás jugadores no se ven afectados.
+    /// Si era el último jugador, se regresa al menú principal.
+    /// </summary>
+    public void SalirDeLaSeleccion(int jugadorId)
     {
         if (!_jugadores.ContainsKey(jugadorId)) return;
-        _desconectando[jugadorId - 1]     = true;
-        _timersDesconexion[jugadorId - 1] = timerDesconexion;
-    }
 
-    public void CancelarDesconexion(int jugadorId)
-    {
-        _desconectando[jugadorId - 1]     = false;
-        _timersDesconexion[jugadorId - 1] = 0f;
-    }
-
-    void ExpulsarJugador(int jugadorId)
-    {
-        _desconectando[jugadorId - 1]           = false;
         _personajesSeleccionados[jugadorId - 1] = -1;
         _jugadores.Remove(jugadorId);
         secciones[jugadorId - 1].Desactivar();
+
+        // Destruir el personaje de ese jugador (el PlayerInputManager libera su índice)
+        PlayerJoinHandler[] jugadores = FindObjectsByType<PlayerJoinHandler>(FindObjectsSortMode.None);
+        foreach (PlayerJoinHandler j in jugadores)
+        {
+            if (j.JugadorId == jugadorId)
+            {
+                Destroy(j.gameObject);
+                break;
+            }
+        }
+
+        RefrescarBloqueoTodas();
+
+        // Último jugador en salir → menú principal
+        if (_jugadores.Count == 0)
+        {
+            GameFlowManager.Instance.MostrarMenu();
+            return;
+        }
+
+        // Si los que quedan ya estaban todos listos, la partida puede continuar
+        VerificarTodosListos();
     }
 
     void VerificarTodosListos()
@@ -168,13 +227,33 @@ public class LobbyManager : MonoBehaviour
         for (int i = 0; i < 4; i++)
         {
             _personajesSeleccionados[i] = -1;
-            _timersDesconexion[i]       = 0f;
-            _desconectando[i]           = false;
             if (i < secciones.Length && secciones[i] != null)
                 secciones[i].Desactivar();
         }
 
         Debug.Log("LobbyManager: Lobby reiniciado — todos los jugadores expulsados.");
+    }
+
+    /// <summary>
+    /// Vuelve de la selección de nivel a la selección de personaje (Esc / B).
+    /// Todos los jugadores dejan de estar "listos" y conservan el personaje que tenían
+    /// elegido en pantalla, para poder cambiarlo o volver a confirmar.
+    /// </summary>
+    public void VolverASeleccionDePersonaje()
+    {
+        for (int i = 0; i < secciones.Length; i++)
+            if (secciones[i] != null && secciones[i].EstaListo())
+                secciones[i].CancelarListo();
+
+        GameFlowManager.Instance.MostrarLobby();
+        RefrescarBloqueoTodas();
+    }
+
+    /// <summary>Llamado desde el nuevo botón "Volver al Menú" de la pantalla de selección.</summary>
+    public void VolverAlMenu()
+    {
+        ReiniciarLobby();
+        GameFlowManager.Instance.MostrarMenu();
     }
 
     public GameObject[] GetPrefabsSeleccionados()
