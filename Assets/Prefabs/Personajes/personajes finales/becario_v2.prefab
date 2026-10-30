@@ -441,8 +441,9 @@ MonoBehaviour:
   turnSpeed: 15
   staminaMaxima: 100
   staminaActual: 100
-  consumoPorSegundo: 10
+  consumoPorSegundo: 3
   movimientoBloqueado: 0
+  margenPared: 0.02
 --- !u!114 &1735766230847610058
 MonoBehaviour:
   m_ObjectHideFlags: 0

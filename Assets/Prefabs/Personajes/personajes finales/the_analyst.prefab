@@ -381,7 +381,7 @@ MonoBehaviour:
   turnSpeed: 15
   staminaMaxima: 100
   staminaActual: 100
-  consumoPorSegundo: 4
+  consumoPorSegundo: 3
   movimientoBloqueado: 0
 --- !u!114 &5597637559273154928
 MonoBehaviour:

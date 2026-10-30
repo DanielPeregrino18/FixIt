@@ -51,7 +51,7 @@ public class RepairTable : InteractableTable
             DejarLaptop(player);
         }
         else if (!playerHasItem && tableHasItem &&
-                (_estado == Estado.Lista || _estado == Estado.Vacia))
+                (_estado == Estado.Lista || _estado == Estado.Vacia || _estado == Estado.EsperandoIniciar))
         {
             Laptop laptopCheck = currentItemOnTable.GetComponent<Laptop>();
             if (laptopCheck != null && !laptopCheck.PuedeRecogerse())

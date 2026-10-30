@@ -4,11 +4,11 @@ public class LaptopController : MonoBehaviour
 {
     private Vector3 targetPosition;
     private bool isMoving = false;
-    public bool isInteractable = false; 
-    
+    public bool isInteractable = false;
+
     // NUEVO: Bandera para saber si ya pasó por el sensor
-    public bool yaLlego = false; 
-    
+    public bool yaLlego = false;
+
     private Rigidbody rb;
 
     void Awake()
@@ -22,8 +22,18 @@ public class LaptopController : MonoBehaviour
 
         targetPosition = nuevaPosicion;
         isMoving = true;
-        isInteractable = false; 
-        rb.isKinematic = true; 
+        isInteractable = false;
+        rb.isKinematic = true;
+    }
+
+    /// <summary>
+    /// Si el jugador toma la laptop a mitad del viaje, el script se desactiva.
+    /// Se cancela el viaje pendiente para que, al soltarla en el suelo y volver a
+    /// activarse, no intente seguir hacia el slot.
+    /// </summary>
+    void OnDisable()
+    {
+        isMoving = false;
     }
 
     void Update()
@@ -35,7 +45,7 @@ public class LaptopController : MonoBehaviour
             if (Vector3.Distance(transform.position, targetPosition) < 0.01f)
             {
                 isMoving = false;
-                isInteractable = true; 
+                isInteractable = true;
             }
         }
     }

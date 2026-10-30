@@ -35,7 +35,7 @@ public class WaveManager : MonoBehaviour
 
     // ── Estado interno ────────────────────────────────────────────────────────
     private NivelData _nivelActual;
-    private bool      _corriendo = false;
+    private bool _corriendo = false;
 
     private static readonly Laptop.Problema[] _problemasFacil = {
         Laptop.Problema.Limpieza,
@@ -69,7 +69,7 @@ public class WaveManager : MonoBehaviour
         StopAllCoroutines();
 
         _nivelActual = datos;
-        _corriendo   = true;
+        _corriendo = true;
 
         // Limpiar cualquier laptop/pieza y estado de mesas que haya
         // quedado del nivel anterior (el juego no recarga la escena entre niveles)
@@ -80,6 +80,16 @@ public class WaveManager : MonoBehaviour
         {
             GameManager.Instance.IniciarNivel(datos.nivel);
             GameManager.Instance.incendiosActivos = datos.incendios;
+
+            // Total de laptops que saldrán (JSON × jugadores) para el fin anticipado
+            int jugadoresNivel = 1;
+            if (LobbyManager.Instance != null)
+                jugadoresNivel = Mathf.Max(1, LobbyManager.Instance.CantidadJugadores());
+            int totalEsperado = 0;
+            if (datos.oleadas != null)
+                foreach (OleadaData o in datos.oleadas)
+                    if (o.laptops != null) totalEsperado += o.laptops.Count * jugadoresNivel;
+            GameManager.Instance.DefinirLaptopsEsperadas(totalEsperado);
         }
 
         // Configurar servidores: primero desactivar todos, luego programar
@@ -195,11 +205,11 @@ public class WaveManager : MonoBehaviour
             if (p != null) { Destroy(p.gameObject); piezasDestruidas++; }
         }
 
-        foreach (var t in FindObjectsByType<NormalTable>(FindObjectsSortMode.None))   t.LimpiarParaNuevoNivel();
+        foreach (var t in FindObjectsByType<NormalTable>(FindObjectsSortMode.None)) t.LimpiarParaNuevoNivel();
         foreach (var t in FindObjectsByType<CleaningTable>(FindObjectsSortMode.None)) t.LimpiarParaNuevoNivel();
-        foreach (var t in FindObjectsByType<RepairTable>(FindObjectsSortMode.None))   t.LimpiarParaNuevoNivel();
-        foreach (var t in FindObjectsByType<UpdateTable>(FindObjectsSortMode.None))   t.LimpiarParaNuevoNivel();
-        foreach (var t in FindObjectsByType<SlotTable>(FindObjectsSortMode.None))     t.LimpiarParaNuevoNivel();
+        foreach (var t in FindObjectsByType<RepairTable>(FindObjectsSortMode.None)) t.LimpiarParaNuevoNivel();
+        foreach (var t in FindObjectsByType<UpdateTable>(FindObjectsSortMode.None)) t.LimpiarParaNuevoNivel();
+        foreach (var t in FindObjectsByType<SlotTable>(FindObjectsSortMode.None)) t.LimpiarParaNuevoNivel();
 
         // Devolver cada extintor a su estación con carga completa
         foreach (var e in FindObjectsByType<ExtinguisherStation>(FindObjectsSortMode.None))
@@ -209,10 +219,17 @@ public class WaveManager : MonoBehaviour
         foreach (PlayerInteraction p in FindObjectsByType<PlayerInteraction>(FindObjectsSortMode.None))
         {
             p.isHoldingItem = false;
-            p.heldItem      = null;
+            p.heldItem = null;
             if (p.anim != null) p.anim.SetBool("isHolding", false);
             p.AjustarCollider(false);
         }
+
+        // Reiniciar a los personajes: stamina llena y de vuelta en su punto de inicio
+        foreach (PlayerMovement m in FindObjectsByType<PlayerMovement>(FindObjectsSortMode.None))
+            m.ReiniciarEstado();
+
+        PlayerSpawner spawner = FindFirstObjectByType<PlayerSpawner>();
+        if (spawner != null) spawner.ReposicionarJugadores();
 
         Debug.Log($"WaveManager: Nivel anterior limpiado — {laptopsDestruidas} laptops y {piezasDestruidas} piezas destruidas.");
     }
@@ -256,11 +273,11 @@ public class WaveManager : MonoBehaviour
 
         switch (tipo.ToLower())
         {
-            case "facil":       cantidad = 1; pool = _problemasFacil; break;
-            case "media":       cantidad = 2; pool = _problemasMedia; break;
-            case "dificil":     cantidad = 3; pool = _problemasMedia; break;
+            case "facil": cantidad = 1; pool = _problemasFacil; break;
+            case "media": cantidad = 2; pool = _problemasMedia; break;
+            case "dificil": cantidad = 3; pool = _problemasMedia; break;
             case "muy_dificil": cantidad = 4; pool = _problemasMedia; break;
-            default:            cantidad = 1; pool = _problemasFacil; break;
+            default: cantidad = 1; pool = _problemasFacil; break;
         }
 
         List<Laptop.Problema> mezclado = new List<Laptop.Problema>(pool);

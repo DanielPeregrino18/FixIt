@@ -18,6 +18,12 @@ public class PlayerInteraction : MonoBehaviour
     public float castDistance = 1.5f;
     public LayerMask interactableLayer;
 
+    [Header("Objeto bajo los pies (respaldo)")]
+    [Tooltip("Zona que busca objetos recogibles justo donde está parado el jugador. Selecciona al jugador para ver el cubo verde en el Scene.")]
+    public Vector3 tamañoBajoPies = new Vector3(1.2f, 1f, 1.2f);
+    [Tooltip("Centro de esa zona, relativo al jugador")]
+    public Vector3 centroBajoPies = new Vector3(0f, 0.3f, 0f);
+
     [Header("Sistema de Manos")]
     public Transform itemSocket;
     public bool isHoldingItem = false;
@@ -37,6 +43,7 @@ public class PlayerInteraction : MonoBehaviour
     // ── Estado detectado por el radar ─────────────────────────────────────────
     private InteractableTable _currentTable;
     private GameObject _currentItemOnFloor;
+    private GameObject _itemBajoPies;
 
     private bool _usingPlayerInput = false;
     private InputAction interactAction;
@@ -109,13 +116,22 @@ public class PlayerInteraction : MonoBehaviour
 
     void Update()
     {
+        // En pausa (o en resultados) el jugador no puede interactuar con nada
+        if (Time.timeScale == 0f) return;
+
         DetectAhead();
+        ActualizarItemBajoPies();
 
         if (interactAction != null && interactAction.WasPressedThisFrame())
         {
             if (_currentTable != null)
             {
+                bool manosLibresAntes = !isHoldingItem;
                 _currentTable.Interact(this);
+
+                // Si la mesa no te dio nada, recoger lo que haya bajo los pies
+                if (manosLibresAntes && !isHoldingItem)
+                    IntentarRecogerBajoPies();
             }
             else if (_currentItemOnFloor != null && !isHoldingItem)
             {
@@ -124,6 +140,11 @@ public class PlayerInteraction : MonoBehaviour
                     Debug.Log("PlayerInteraction: ¡Está en llamas! Usa el extintor primero.");
                 else
                     RecogerDelSuelo(_currentItemOnFloor);
+            }
+            else if (!isHoldingItem && _itemBajoPies != null)
+            {
+                // Sin mesa ni objeto delante, pero hay uno bajo los pies
+                IntentarRecogerBajoPies();
             }
             else if (isHoldingItem)
             {
@@ -193,6 +214,66 @@ public class PlayerInteraction : MonoBehaviour
     }
 
     void ClearItemOnFloor() => _currentItemOnFloor = null;
+
+    // ── Objeto bajo los pies ──────────────────────────────────────────────────
+    // El BoxCast no detecta lo que ya está solapado con él al empezar, así que un
+    // objeto bajo el jugador no se ve. Esta zona lo busca aparte; solo se usa como
+    // respaldo cuando la mesa de enfrente no hizo nada.
+
+    void ActualizarItemBajoPies()
+    {
+        _itemBajoPies = null;
+        if (isHoldingItem) return;
+
+        Vector3 centro = transform.TransformPoint(centroBajoPies);
+        Collider[] cercanos = Physics.OverlapBox(centro, tamañoBajoPies / 2f, transform.rotation, interactableLayer);
+
+        float mejorDist = float.MaxValue;
+        foreach (Collider c in cercanos)
+        {
+            GameObject candidato = null;
+
+            LaptopController lc = c.GetComponent<LaptopController>();
+            if (lc != null && lc.isInteractable)
+            {
+                Laptop l = c.GetComponent<Laptop>();
+                if (l != null && l.yaEntregada) continue; // ya entregada, sigue en la banda
+                candidato = lc.gameObject;
+            }
+            else
+            {
+                PickableItem pk = c.GetComponent<PickableItem>();
+                if (pk != null && pk.isInteractable) candidato = pk.gameObject;
+            }
+
+            if (candidato == null) continue;
+
+            float d = (candidato.transform.position - centro).sqrMagnitude;
+            if (d < mejorDist) { mejorDist = d; _itemBajoPies = candidato; }
+        }
+    }
+
+    void IntentarRecogerBajoPies()
+    {
+        if (_itemBajoPies == null) return;
+
+        Laptop laptop = _itemBajoPies.GetComponent<Laptop>();
+        if (laptop != null && !laptop.PuedeRecogerse())
+        {
+            Debug.Log("PlayerInteraction: ¡Está en llamas! Usa el extintor primero.");
+            return;
+        }
+
+        RecogerDelSuelo(_itemBajoPies);
+        _itemBajoPies = null;
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.green;
+        Gizmos.matrix = Matrix4x4.TRS(transform.TransformPoint(centroBajoPies), transform.rotation, Vector3.one);
+        Gizmos.DrawWireCube(Vector3.zero, tamañoBajoPies);
+    }
 
     // ── Acciones ──────────────────────────────────────────────────────────────
 

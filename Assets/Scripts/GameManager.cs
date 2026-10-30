@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -35,8 +36,17 @@ public class GameManager : MonoBehaviour
     public TextMeshProUGUI textoHora;   // reloj digital "8:00 AM"
 
     [Header("UI - Contadores")]
+    [Tooltip("Número de laptops entregadas CORRECTAMENTE (solo el número, ej. 3)")]
     public TextMeshProUGUI textoLaptopsEntregadas;
+    [Tooltip("Laptops perdidas / máximo permitido (ej. 2/6)")]
     public TextMeshProUGUI textoLaptopsPerdidas;
+    [Tooltip("Color del contador de perdidas cuando se está cerca de perder")]
+    public Color colorPeligroPerdidas = new Color(0.85f, 0.1f, 0.1f, 1f);
+    [Tooltip("Cuando faltan estas laptops (o menos) para perder, el contador de perdidas se pone en color de peligro")]
+    public int avisoPeligroFaltan = 2;
+    [Tooltip("Qué tanto crece el número al cambiar (1 = sin efecto)")]
+    public float escalaPopContador = 1.35f;
+    public float duracionPopContador = 0.25f;
 
     [Header("UI - Pantalla de Resultados")]
     public GameObject pantallaResultados;
@@ -61,6 +71,29 @@ public class GameManager : MonoBehaviour
     public Sprite spriteEstrellaLlena;
     [Tooltip("Sprite de estrella no ganada")]
     public Sprite spriteEstrellaVacia;
+
+    [Header("UI - Animación de Resultados")]
+    [Tooltip("Canvas Group del objeto 'Botones' (el contenedor de los 3 botones). Hace el fade y bloquea clics mientras no aparecen")]
+    public CanvasGroup grupoBotones;
+    [Tooltip("Segundos que tarda en aparecer la tabla (pop de escala)")]
+    public float duracionPopTabla = 0.35f;
+    [Tooltip("Segundos que espera el mensaje del post-it antes de aparecer")]
+    public float retrasoMensaje = 0.25f;
+    public float duracionMensaje = 0.3f;
+    [Tooltip("Segundos tras aparecer la tabla antes de que salga la primera estrella")]
+    public float retrasoPrimeraEstrella = 0.1f;
+    [Tooltip("Segundos entre una estrella GANADA y la siguiente")]
+    public float intervaloEstrellas = 0.22f;
+    [Tooltip("Segundos entre estrellas NO ganadas (más rápido, para no alargar la espera)")]
+    public float intervaloEstrellasVacias = 0.08f;
+    public float duracionPopEstrella = 0.2f;
+    [Tooltip("Pausa tras la última estrella antes de que aparezcan los botones")]
+    public float pausaAntesDeBotones = 0.1f;
+    public float duracionBotones = 0.3f;
+    [Tooltip("Cuánto suben los botones al aparecer (píxeles)")]
+    public float distanciaSubidaBotones = 40f;
+    [Tooltip("Segundos extra tras aparecer los botones antes de aceptar E / A. Evita que una pulsación del juego active un botón")]
+    public float margenInput = 0.2f;
 
     [Header("UI - Estilo de botones (Resultados)")]
     [Tooltip("El botón en la posición 0 de la lista de activos usa este sprite (acción recomendada)")]
@@ -109,6 +142,36 @@ public class GameManager : MonoBehaviour
     private int _laptopsEntregadas = 0;
     private int _laptopsTotales = 0; // total que llegaron en el nivel
     private int _laptopsPerdidas = 0;
+    private int _laptopsEsperadas = 0; // total que saldrá en el nivel (JSON × jugadores)
+    private Coroutine _corrutinaFinAnticipado;
+
+    [Header("Día del calendario (junto a los contadores)")]
+    [Tooltip("Texto con el día del calendario del nivel actual (ej. 8). El ícono de calendario es una Image aparte")]
+    public TextMeshProUGUI textoDia;
+    [Tooltip("{0} se reemplaza por el día. Ej: \"{0}\" o \"Día {0}\"")]
+    public string formatoDia = "{0}";
+
+    [Header("Score")]
+    [Tooltip("Texto donde se muestra el score en la pantalla de resultados")]
+    public TextMeshProUGUI textoScore;
+    [Tooltip("{0} se reemplaza por el número. Ej: \"Score: {0}\"")]
+    public string formatoScore = "Score: {0}";
+    public int puntosPorEstrella = 100;
+    public float puntosPorSegundoSobrante = 1f;
+    [Tooltip("Segundos que tarda el número en subir de 0 al score final")]
+    public float duracionScore = 0.5f;
+    public float pausaAntesDeScore = 0.1f;
+
+    /// <summary>Score de la última partida (0 si fue Game Over). Para enviarlo al backend.</summary>
+    public int ScoreFinal { get; private set; }
+
+    private int _segundosSobrantes = 0;
+    private int _scoreMostrado = 0;
+    private Vector3 _escalaBaseScore = Vector3.one;
+
+    [Header("Fin anticipado del nivel")]
+    [Tooltip("Segundos de pausa antes de mostrar resultados cuando ya no queda nada por resolver")]
+    public float retrasoFinAnticipado = 1f;
     private int _piezasDesperdiciadas = 0;
 
     // Horario: 8 AM a 4 PM = 8 horas
@@ -119,6 +182,15 @@ public class GameManager : MonoBehaviour
     private List<GameObject> _botonesResultadosActivos = new List<GameObject>();
     private int _indiceResultados = 0;
     private float _timerNavResultados = 0f;
+
+    // Animación / bloqueo de input de la pantalla de resultados
+    private Coroutine _rutinaResultados;
+    private bool _resultadosListos = false;  // false mientras se anima: se ignora todo el input
+    private bool _stickYaNeutral = false;  // el stick debe volver al centro una vez antes de navegar con él
+    private bool _baseResultadosCapturada = false;
+    private Vector3 _escalaBaseTabla = Vector3.one;
+    private Vector3[] _escalaBaseEstrellas;
+    private Vector2 _posBaseBotones;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -186,7 +258,10 @@ public class GameManager : MonoBehaviour
 
         // Fin del tiempo
         if (_timerActual >= duracionNivel)
+        {
+            _segundosSobrantes = 0; // se acabó el tiempo: sin bonus
             TerminarNivel();
+        }
     }
 
     // ── API pública ───────────────────────────────────────────────────────────
@@ -202,9 +277,17 @@ public class GameManager : MonoBehaviour
         _laptopsEntregadas = 0;
         _laptopsTotales = 0;
         _laptopsPerdidas = 0;
+        _laptopsEsperadas = 0;
+        _segundosSobrantes = 0;
+        ScoreFinal = 0;
+        if (_corrutinaFinAnticipado != null) { StopCoroutine(_corrutinaFinAnticipado); _corrutinaFinAnticipado = null; }
         _piezasDesperdiciadas = 0;
         _nivelActivo = true;
         _nivelActualNumero = numeroNivel;
+        ActualizarDia();
+
+        // La canción del nivel arranca (o se reinicia) desde el principio
+        if (AudioManager.Instance != null) AudioManager.Instance.IniciarMusicaNivel(duracionNivel);
 
         Time.timeScale = 1f; // por si venía en pausa de un nivel anterior
         if (pantallaResultados != null) pantallaResultados.SetActive(false);
@@ -221,6 +304,23 @@ public class GameManager : MonoBehaviour
         Debug.Log("GameManager: Nivel iniciado, reloj en 8:00 AM.");
     }
 
+    /// <summary>
+    /// Día del calendario de un nivel. Se cuentan solo lunes a viernes (5 días por semana),
+    /// igual que en el calendario: niveles 1-5 → días 1-5, 6-10 → 8-12, 11-15 → 15-19, 16-20 → 22-26.
+    /// </summary>
+    public static int DiaDelCalendario(int nivel)
+    {
+        return nivel + 2 * ((nivel - 1) / 5);
+    }
+
+    void ActualizarDia()
+    {
+        if (textoDia == null) return;
+        textoDia.text = _nivelActualNumero > 0
+            ? string.Format(formatoDia, DiaDelCalendario(_nivelActualNumero))
+            : "";
+    }
+
     /// <summary>Llamar cuando se entrega una laptop completa.</summary>
     public void RegistrarLaptopEntregada()
     {
@@ -228,6 +328,36 @@ public class GameManager : MonoBehaviour
         _laptopsEntregadas++;
         ActualizarUI();
         Debug.Log($"GameManager: Laptop entregada. Total: {_laptopsEntregadas}");
+        RevisarFinAnticipado();
+    }
+
+    /// <summary>El WaveManager informa cuántas laptops saldrán en total en este nivel.</summary>
+    public void DefinirLaptopsEsperadas(int total)
+    {
+        _laptopsEsperadas = total;
+    }
+
+    /// <summary>Si todas las laptops del nivel ya se entregaron o se perdieron, termina el nivel.</summary>
+    void RevisarFinAnticipado()
+    {
+        if (!_nivelActivo || _corrutinaFinAnticipado != null) return;
+        if (_laptopsEsperadas <= 0) return;
+        if (_laptopsEntregadas + _laptopsPerdidas < _laptopsEsperadas) return;
+
+        // La música empieza a bajar durante la pausa de antes de los resultados
+        if (AudioManager.Instance != null) AudioManager.Instance.DetenerMusicaConFundido();
+
+        // El bonus se mide ahora, no después de la pausa
+        _segundosSobrantes = Mathf.Max(0, Mathf.FloorToInt(duracionNivel - _timerActual));
+        Debug.Log($"GameManager: no queda nada por resolver — fin anticipado del nivel ({_segundosSobrantes} s sobrantes).");
+        _corrutinaFinAnticipado = StartCoroutine(FinAnticipadoTrasPausa());
+    }
+
+    IEnumerator FinAnticipadoTrasPausa()
+    {
+        yield return new WaitForSeconds(retrasoFinAnticipado);
+        _corrutinaFinAnticipado = null;
+        if (_nivelActivo) TerminarNivel();
     }
 
     /// <summary>Llamar cuando llega una laptop nueva al nivel.</summary>
@@ -249,6 +379,8 @@ public class GameManager : MonoBehaviour
 
         if (_laptopsPerdidas >= maxLaptopsPermitidas)
             GameOver("Demasiadas laptops perdidas.");
+        else
+            RevisarFinAnticipado();
     }
 
     /// <summary>Llamar cuando se desperdicia una pieza de hardware.</summary>
@@ -293,6 +425,7 @@ public class GameManager : MonoBehaviour
     void TerminarNivel()
     {
         _nivelActivo = false;
+        if (AudioManager.Instance != null) AudioManager.Instance.DetenerMusicaConFundido();
         Time.timeScale = 0f;
         BloquearJugadores();
 
@@ -300,18 +433,30 @@ public class GameManager : MonoBehaviour
         // nunca se entregó — se cuenta como perdida antes de calcular estrellas.
         LimpiarLaptopsSinEntregar(contarComoPerdidas: true);
 
+        // Si con las laptops que quedaron sin entregar se llega (o pasa) del límite, es derrota
+        if (_laptopsPerdidas >= maxLaptopsPermitidas)
+        {
+            GameOver("Demasiadas laptops perdidas.");
+            return;
+        }
+
         int estrellaGanadas = CalcularEstrellas();
 
         // NUEVO: guardar el progreso
         if (ProgressManager.Instance != null && _nivelActualNumero > 0)
             ProgressManager.Instance.GuardarResultado(_nivelActualNumero, estrellaGanadas);
 
-        MostrarResultados(estrellaGanadas, false);
+        int score = estrellaGanadas * puntosPorEstrella
+                  + Mathf.FloorToInt(_segundosSobrantes * puntosPorSegundoSobrante);
+        Debug.Log($"GameManager: Score = {estrellaGanadas}★ × {puntosPorEstrella} + {_segundosSobrantes} s = {score}");
+
+        MostrarResultados(estrellaGanadas, false, "", score);
     }
 
     void GameOver(string motivo)
     {
         _nivelActivo = false;
+        if (AudioManager.Instance != null) AudioManager.Instance.DetenerMusicaConFundido();
         Time.timeScale = 0f;
         BloquearJugadores();
 
@@ -335,6 +480,13 @@ public class GameManager : MonoBehaviour
         foreach (Laptop l in restantes)
         {
             if (l == null) continue;
+
+            // Las ya entregadas (siguen en la banda de salida) se destruyen sin contarse
+            if (l.yaEntregada)
+            {
+                Destroy(l.gameObject);
+                continue;
+            }
 
             if (contarComoPerdidas)
                 _laptopsPerdidas++;
@@ -376,10 +528,21 @@ public class GameManager : MonoBehaviour
         return 1;
     }
 
-    void MostrarResultados(int estrellasGanadas, bool esGameOver, string motivo = "")
+    void MostrarResultados(int estrellasGanadas, bool esGameOver, string motivo = "", int score = 0)
     {
+        // "Siguiente nivel" solo si ganaste y no es el último nivel
+        bool hayNivelSiguiente = !esGameOver && _nivelActualNumero > 0 &&
+                                 _nivelActualNumero < ProgressManager.TOTAL_NIVELES;
+
+        ScoreFinal = esGameOver ? 0 : score;
+        _scoreMostrado = ScoreFinal;
+        if (textoScore != null) textoScore.text = string.Format(formatoScore, 0);
+
         if (pantallaResultados == null) return;
         pantallaResultados.SetActive(true);
+
+        // Sonido de victoria o de derrota
+        if (AudioManager.Instance != null) AudioManager.Instance.ReproducirSonidoResultado(!esGameOver);
 
         if (textoResultado != null)
         {
@@ -439,12 +602,12 @@ public class GameManager : MonoBehaviour
 
         if (botonContinuar != null)
         {
-            botonContinuar.SetActive(!esGameOver);
+            botonContinuar.SetActive(hayNivelSiguiente);
             Button btn = botonContinuar.GetComponent<Button>();
             if (btn != null)
             {
                 btn.onClick.RemoveAllListeners();
-                btn.onClick.AddListener(ContinuarAlCalendario);
+                btn.onClick.AddListener(ContinuarAlSiguienteNivel);
             }
         }
 
@@ -463,7 +626,7 @@ public class GameManager : MonoBehaviour
         // la acción recomendada (Continuar si ganaste, Reintentar si perdiste)
         // y recibe el sprite "primario" — el resto usa el sprite secundario.
         _botonesResultadosActivos.Clear();
-        if (!esGameOver && botonContinuar != null) _botonesResultadosActivos.Add(botonContinuar);
+        if (hayNivelSiguiente && botonContinuar != null) _botonesResultadosActivos.Add(botonContinuar);
         if (botonReintentar != null) _botonesResultadosActivos.Add(botonReintentar);
         if (botonSalirMenu != null) _botonesResultadosActivos.Add(botonSalirMenu);
 
@@ -484,6 +647,164 @@ public class GameManager : MonoBehaviour
 
         _indiceResultados = 0;
         ActualizarSeleccionResultados();
+
+        IniciarSecuenciaResultados(estrellasGanadas);
+    }
+
+    // ── Animación de entrada de la pantalla de Resultados ─────────────────────
+    // Se hace por código con tiempo REAL (unscaledDeltaTime) porque el juego está en
+    // timeScale 0 cuando se muestran los resultados. Mientras dura, se ignora todo el input
+    // (teclado, control y mouse) para que una pulsación hecha en el juego no active un botón.
+
+    void IniciarSecuenciaResultados(int estrellasGanadas)
+    {
+        if (_rutinaResultados != null) StopCoroutine(_rutinaResultados);
+
+        // Guardar los valores "normales" (los del Inspector) la primera vez
+        if (!_baseResultadosCapturada)
+        {
+            _baseResultadosCapturada = true;
+            if (imagenTabla != null) _escalaBaseTabla = imagenTabla.transform.localScale;
+
+            int n = estrellas != null ? estrellas.Length : 0;
+            _escalaBaseEstrellas = new Vector3[n];
+            for (int i = 0; i < n; i++)
+                _escalaBaseEstrellas[i] = estrellas[i] != null ? estrellas[i].transform.localScale : Vector3.one;
+
+            if (textoScore != null) _escalaBaseScore = textoScore.transform.localScale;
+
+            if (grupoBotones != null)
+                _posBaseBotones = ((RectTransform)grupoBotones.transform).anchoredPosition;
+        }
+
+        _rutinaResultados = StartCoroutine(SecuenciaResultados(estrellasGanadas));
+    }
+
+    void DetenerSecuenciaResultados()
+    {
+        if (_rutinaResultados != null)
+        {
+            StopCoroutine(_rutinaResultados);
+            _rutinaResultados = null;
+        }
+        _resultadosListos = false;
+    }
+
+    IEnumerator SecuenciaResultados(int estrellasGanadas)
+    {
+        _resultadosListos = false;
+        _stickYaNeutral = false;
+
+        int nEstrellas = estrellas != null ? estrellas.Length : 0;
+
+        // ── Calcular los tiempos de cada elemento ────────────────────────────
+        float tMensajeIni = retrasoMensaje;
+
+        float[] tEstrellaIni = new float[nEstrellas];
+        float tSiguiente = duracionPopTabla + retrasoPrimeraEstrella;
+        for (int i = 0; i < nEstrellas; i++)
+        {
+            tEstrellaIni[i] = tSiguiente;
+            // Tras una estrella ganada se espera más; tras una vacía, menos
+            tSiguiente += (i < estrellasGanadas) ? intervaloEstrellas : intervaloEstrellasVacias;
+        }
+        float tUltimaEstrellaFin = nEstrellas > 0
+            ? tEstrellaIni[nEstrellas - 1] + duracionPopEstrella
+            : duracionPopTabla;
+
+        float tScoreIni = tUltimaEstrellaFin + pausaAntesDeScore;
+        float tScoreFin = tScoreIni + duracionScore;
+
+        float tBotonesIni = (textoScore != null ? tScoreFin : tUltimaEstrellaFin) + pausaAntesDeBotones;
+        float tBotonesFin = tBotonesIni + duracionBotones;
+        float tTotal = tBotonesFin + margenInput;
+
+        RectTransform rtBotones = grupoBotones != null ? (RectTransform)grupoBotones.transform : null;
+
+        // ── Bucle de animación ───────────────────────────────────────────────
+        float t = 0f;
+        while (true)
+        {
+            // Tabla (incluye el post-it, que ya viene en la imagen)
+            if (imagenTabla != null)
+                imagenTabla.transform.localScale = _escalaBaseTabla * EaseOutBack(Progreso(t, 0f, duracionPopTabla));
+
+            // Mensaje del post-it
+            if (textoMensaje != null)
+                textoMensaje.alpha = Progreso(t, tMensajeIni, duracionMensaje);
+
+            // Estrellas, una por una
+            for (int i = 0; i < nEstrellas; i++)
+            {
+                if (estrellas[i] == null) continue;
+                estrellas[i].transform.localScale = _escalaBaseEstrellas[i] *
+                    EaseOutBack(Progreso(t, tEstrellaIni[i], duracionPopEstrella));
+            }
+
+            // Score: aparece con pop y el número sube de 0 al valor final
+            if (textoScore != null)
+            {
+                float ps = Progreso(t, tScoreIni, duracionScore);
+                textoScore.alpha = Progreso(t, tScoreIni, 0.15f);
+                textoScore.transform.localScale = _escalaBaseScore *
+                    EaseOutBack(Progreso(t, tScoreIni, 0.25f));
+                textoScore.text = string.Format(formatoScore, Mathf.RoundToInt(_scoreMostrado * ps));
+            }
+
+            // Botones: fade + subida
+            if (grupoBotones != null)
+            {
+                float pb = Progreso(t, tBotonesIni, duracionBotones);
+                float suave = 1f - Mathf.Pow(1f - pb, 3f);
+                grupoBotones.alpha = suave;
+                rtBotones.anchoredPosition = _posBaseBotones + Vector2.down * distanciaSubidaBotones * (1f - suave);
+                bool visible = pb >= 1f;
+                grupoBotones.interactable = visible;
+                grupoBotones.blocksRaycasts = visible;
+            }
+
+            if (t >= tTotal) break;
+
+            yield return null;
+            t += Time.unscaledDeltaTime;
+        }
+
+        // Estado final exacto
+        if (imagenTabla != null) imagenTabla.transform.localScale = _escalaBaseTabla;
+        if (textoMensaje != null) textoMensaje.alpha = 1f;
+        if (textoScore != null)
+        {
+            textoScore.alpha = 1f;
+            textoScore.transform.localScale = _escalaBaseScore;
+            textoScore.text = string.Format(formatoScore, _scoreMostrado);
+        }
+        for (int i = 0; i < nEstrellas; i++)
+            if (estrellas[i] != null) estrellas[i].transform.localScale = _escalaBaseEstrellas[i];
+        if (grupoBotones != null)
+        {
+            grupoBotones.alpha = 1f;
+            grupoBotones.interactable = true;
+            grupoBotones.blocksRaycasts = true;
+            rtBotones.anchoredPosition = _posBaseBotones;
+        }
+
+        _resultadosListos = true;
+        _rutinaResultados = null;
+    }
+
+    static float Progreso(float t, float inicio, float duracion)
+    {
+        if (duracion <= 0f) return t >= inicio ? 1f : 0f;
+        return Mathf.Clamp01((t - inicio) / duracion);
+    }
+
+    /// <summary>Curva con un pequeño "rebote" al final (pop).</summary>
+    static float EaseOutBack(float t)
+    {
+        const float c1 = 1.70158f;
+        const float c3 = c1 + 1f;
+        float u = t - 1f;
+        return 1f + c3 * u * u * u + c1 * u * u;
     }
 
     // ── Navegación con flechas/control en Resultados ──────────────────────────
@@ -491,6 +812,19 @@ public class GameManager : MonoBehaviour
     void ActualizarNavegacionResultados()
     {
         if (_botonesResultadosActivos.Count == 0) return;
+
+        // Mientras se anima la pantalla, no se acepta ningún input
+        if (!_resultadosListos) return;
+
+        // Si el jugador llegó con el stick inclinado (moviéndose en el juego), no navegar con el
+        // stick hasta que lo suelte al centro una vez.
+        if (!_stickYaNeutral)
+        {
+            bool neutral = true;
+            foreach (Gamepad gp in Gamepad.all)
+                if (gp.leftStick.ReadValue().magnitude > 0.3f) { neutral = false; break; }
+            if (neutral) _stickYaNeutral = true;
+        }
 
         _timerNavResultados -= Time.unscaledDeltaTime;
         int dir = 0;
@@ -508,7 +842,7 @@ public class GameManager : MonoBehaviour
                 if (gp.dpad.up.wasPressedThisFrame) { dir = -1; break; }
                 if (gp.dpad.down.wasPressedThisFrame) { dir = 1; break; }
 
-                if (_timerNavResultados <= 0f)
+                if (_stickYaNeutral && _timerNavResultados <= 0f)
                 {
                     Vector2 stick = gp.leftStick.ReadValue();
                     if (stick.y > 0.5f) { dir = -1; break; }
@@ -532,14 +866,22 @@ public class GameManager : MonoBehaviour
 
         if (confirmar)
         {
-            Button btn = _botonesResultadosActivos[_indiceResultados].GetComponent<Button>();
-            btn?.onClick.Invoke();
+            GameObject botonActivado = _botonesResultadosActivos[_indiceResultados];
+            Debug.Log($"GameManager: Resultados — botón '{botonActivado.name}' activado con E / A.");
+            Button btn = botonActivado.GetComponent<Button>();
+            if (btn != null)
+            {
+                AudioManager.Confirmar();
+                btn.onClick.Invoke();
+            }
         }
     }
 
     void MoverSeleccionResultados(int delta)
     {
+        int anterior = _indiceResultados;
         _indiceResultados = Mathf.Clamp(_indiceResultados + delta, 0, _botonesResultadosActivos.Count - 1);
+        if (_indiceResultados != anterior) AudioManager.Navegar();
         ActualizarSeleccionResultados();
     }
 
@@ -564,6 +906,7 @@ public class GameManager : MonoBehaviour
     public void Reintentar()
     {
         Time.timeScale = 1f;
+        DetenerSecuenciaResultados();
         pantallaResultados.SetActive(false);
 
         int nivel = _nivelActualNumero;
@@ -574,10 +917,39 @@ public class GameManager : MonoBehaviour
             WaveManager.Instance.IniciarNivel(datos);
     }
 
+    /// <summary>Botón "Siguiente nivel": inicia directamente el nivel que sigue, sin pasar por el calendario.</summary>
+    void ContinuarAlSiguienteNivel()
+    {
+        int siguiente = _nivelActualNumero + 1;
+
+        // Seguridad: si no hay siguiente nivel o no está desbloqueado, volver al calendario
+        bool puedeSeguir = siguiente <= ProgressManager.TOTAL_NIVELES &&
+                           (ProgressManager.Instance == null || ProgressManager.Instance.EstaDesbloqueado(siguiente));
+        if (!puedeSeguir)
+        {
+            VolverAlCalendario();
+            return;
+        }
+
+        Time.timeScale = 1f;
+        DetenerSecuenciaResultados();
+        pantallaResultados.SetActive(false);
+
+        NivelData datos = NivelLoader.Instance.CargarNivel(siguiente);
+        if (datos != null)
+            WaveManager.Instance.IniciarNivel(datos);
+        else
+        {
+            Debug.LogError($"GameManager: No se pudo cargar el nivel {siguiente}.");
+            VolverAlCalendario();
+        }
+    }
+
     /// <summary>Regresa a la pantalla de selección de nivel (calendario).</summary>
-    void ContinuarAlCalendario()
+    void VolverAlCalendario()
     {
         Time.timeScale = 1f;
+        DetenerSecuenciaResultados();
         pantallaResultados.SetActive(false);
 
         // Desactivar movimiento/interacción de todos los jugadores
@@ -597,6 +969,9 @@ public class GameManager : MonoBehaviour
     {
         Time.timeScale = 1f;
         _nivelActivo = false;
+        if (AudioManager.Instance != null) AudioManager.Instance.DetenerMusicaInmediato();
+        DetenerSecuenciaResultados();
+        if (pantallaResultados != null) pantallaResultados.SetActive(false);
 
         if (WaveManager.Instance != null)
             WaveManager.Instance.DetenerNivel();
@@ -623,11 +998,71 @@ public class GameManager : MonoBehaviour
         GameFlowManager.Instance.MostrarMenu();
     }
 
+    // Estado del HUD de contadores
+    private Color _colorBasePerdidas;
+    private bool _colorBaseCapturado = false;
+    private int _ultimoEntregadasUI = 0;
+    private int _ultimoPerdidasUI = 0;
+    private Coroutine _popEntregadas;
+    private Coroutine _popPerdidas;
+
     void ActualizarUI()
     {
+        // Correctas: solo el número
         if (textoLaptopsEntregadas != null)
-            textoLaptopsEntregadas.text = $"Entregadas: {_laptopsEntregadas}";
+        {
+            textoLaptopsEntregadas.text = _laptopsEntregadas.ToString();
+
+            if (_laptopsEntregadas > _ultimoEntregadasUI)
+                HacerPopContador(textoLaptopsEntregadas.transform, ref _popEntregadas);
+        }
+
+        // Incorrectas (perdidas): N/máximo, y rojo cuando se está cerca de perder
         if (textoLaptopsPerdidas != null)
-            textoLaptopsPerdidas.text = $"Perdidas: {_laptopsPerdidas}/{maxLaptopsPermitidas}";
+        {
+            if (!_colorBaseCapturado)
+            {
+                _colorBasePerdidas = textoLaptopsPerdidas.color;
+                _colorBaseCapturado = true;
+            }
+
+            textoLaptopsPerdidas.text = $"{_laptopsPerdidas}/{maxLaptopsPermitidas}";
+
+            bool peligro = _laptopsPerdidas > 0 &&
+                           (maxLaptopsPermitidas - _laptopsPerdidas) <= avisoPeligroFaltan;
+            textoLaptopsPerdidas.color = peligro ? colorPeligroPerdidas : _colorBasePerdidas;
+
+            if (_laptopsPerdidas > _ultimoPerdidasUI)
+                HacerPopContador(textoLaptopsPerdidas.transform, ref _popPerdidas);
+        }
+
+        _ultimoEntregadasUI = _laptopsEntregadas;
+        _ultimoPerdidasUI = _laptopsPerdidas;
+    }
+
+    void HacerPopContador(Transform objetivo, ref Coroutine rutina)
+    {
+        if (escalaPopContador <= 1f || objetivo == null || !objetivo.gameObject.activeInHierarchy) return;
+
+        if (rutina != null) StopCoroutine(rutina);
+        rutina = StartCoroutine(PopContador(objetivo));
+    }
+
+    IEnumerator PopContador(Transform objetivo)
+    {
+        float dur = Mathf.Max(0.01f, duracionPopContador);
+        float transcurrido = 0f;
+
+        while (transcurrido < dur)
+        {
+            if (objetivo == null) yield break;
+            transcurrido += Time.unscaledDeltaTime;
+            float p = Mathf.Clamp01(transcurrido / dur);
+            float k = Mathf.Sin(p * Mathf.PI); // sube y vuelve a 1
+            objetivo.localScale = Vector3.one * (1f + (escalaPopContador - 1f) * k);
+            yield return null;
+        }
+
+        if (objetivo != null) objetivo.localScale = Vector3.one;
     }
 }

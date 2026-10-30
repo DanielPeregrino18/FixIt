@@ -56,6 +56,13 @@ public class GameFlowManager : MonoBehaviour
 
     void Activar(GameObject canvasActivo)
     {
+        // Música: la misma canción en menú, lobby y selector de nivel; se apaga al entrar al juego
+        if (AudioManager.Instance != null)
+        {
+            if (canvasActivo == canvasJuego) AudioManager.Instance.DetenerMusicaMenu(true);
+            else AudioManager.Instance.IniciarMusicaMenu();
+        }
+
         if (canvasMenu != null) canvasMenu.SetActive(canvasActivo == canvasMenu);
         if (canvasLobby != null) canvasLobby.SetActive(canvasActivo == canvasLobby);
         if (canvasSeleccion != null) canvasSeleccion.SetActive(canvasActivo == canvasSeleccion);

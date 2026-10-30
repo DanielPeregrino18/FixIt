@@ -21,9 +21,9 @@ public class PauseManager : MonoBehaviour
     public GameObject botonReiniciar;
     public GameObject botonSalir;
 
-    private bool  _pausado = false;
+    private bool _pausado = false;
     private List<GameObject> _botones = new List<GameObject>();
-    private int   _indice = 0;
+    private int _indice = 0;
     private float _timerNav = 0f;
 
     void Awake()
@@ -31,9 +31,9 @@ public class PauseManager : MonoBehaviour
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
 
-        if (botonReanudar  != null) _botones.Add(botonReanudar);
+        if (botonReanudar != null) _botones.Add(botonReanudar);
         if (botonReiniciar != null) _botones.Add(botonReiniciar);
-        if (botonSalir     != null) _botones.Add(botonSalir);
+        if (botonSalir != null) _botones.Add(botonSalir);
     }
 
     void Start()
@@ -68,13 +68,14 @@ public class PauseManager : MonoBehaviour
     public void TogglePausa()
     {
         if (_pausado) Reanudar();
-        else          Pausar();
+        else Pausar();
     }
 
     public void Pausar()
     {
         _pausado = true;
         Time.timeScale = 0f;
+        if (AudioManager.Instance != null) AudioManager.Instance.PausarMusica();
         if (canvasPausa != null) canvasPausa.SetActive(true);
 
         _indice = 0;
@@ -85,6 +86,7 @@ public class PauseManager : MonoBehaviour
     {
         _pausado = false;
         Time.timeScale = 1f;
+        if (AudioManager.Instance != null) AudioManager.Instance.ReanudarMusica();
         if (canvasPausa != null) canvasPausa.SetActive(false);
     }
 
@@ -119,7 +121,7 @@ public class PauseManager : MonoBehaviour
 
         if (Keyboard.current != null)
         {
-            if (Keyboard.current.upArrowKey.wasPressedThisFrame)   dir = -1;
+            if (Keyboard.current.upArrowKey.wasPressedThisFrame) dir = -1;
             if (Keyboard.current.downArrowKey.wasPressedThisFrame) dir = 1;
         }
 
@@ -127,21 +129,23 @@ public class PauseManager : MonoBehaviour
         {
             foreach (Gamepad gp in Gamepad.all)
             {
-                if (gp.dpad.up.wasPressedThisFrame)   { dir = -1; break; }
-                if (gp.dpad.down.wasPressedThisFrame) { dir = 1;  break; }
+                if (gp.dpad.up.wasPressedThisFrame) { dir = -1; break; }
+                if (gp.dpad.down.wasPressedThisFrame) { dir = 1; break; }
 
                 if (_timerNav <= 0f)
                 {
                     Vector2 stick = gp.leftStick.ReadValue();
-                    if (stick.y > 0.5f)      { dir = -1; break; }
-                    else if (stick.y < -0.5f) { dir = 1;  break; }
+                    if (stick.y > 0.5f) { dir = -1; break; }
+                    else if (stick.y < -0.5f) { dir = 1; break; }
                 }
             }
         }
 
         if (dir != 0)
         {
+            int anterior = _indice;
             _indice = Mathf.Clamp(_indice + dir, 0, _botones.Count - 1);
+            if (_indice != anterior) AudioManager.Navegar();
             ActualizarSeleccion();
             _timerNav = 0.2f;
         }
@@ -156,7 +160,11 @@ public class PauseManager : MonoBehaviour
         if (confirmar)
         {
             Button btn = _botones[_indice].GetComponent<Button>();
-            btn?.onClick.Invoke();
+            if (btn != null)
+            {
+                AudioManager.Confirmar();
+                btn.onClick.Invoke();
+            }
         }
     }
 

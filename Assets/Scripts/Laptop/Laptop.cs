@@ -71,11 +71,11 @@ public class Laptop : MonoBehaviour, IExtinguishable
 
     // ── Estado interno del fuego ─────────────────────────────────────────────
     private EstadoFuego _estadoFuego = EstadoFuego.Normal;
-    private float _timerActual    = 0f;
-    private float _timerLimite    = 999f;
-    private float _timerEnLlamas  = 0f;
-    private bool  _calentando     = false; // true = está en mesa/suelo, sumando tiempo
-    private bool  _bloqueadaTemp  = false; // bloqueada por la animación de penalización
+    private float _timerActual = 0f;
+    private float _timerLimite = 999f;
+    private float _timerEnLlamas = 0f;
+    private bool _calentando = false; // true = está en mesa/suelo, sumando tiempo
+    private bool _bloqueadaTemp = false; // bloqueada por la animación de penalización
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -123,6 +123,9 @@ public class Laptop : MonoBehaviour, IExtinguishable
 
     public bool EstaLista() => problemasActivos.Count == 0;
 
+    /// <summary>true cuando ya se registró su entrega (sigue en la banda de salida hasta destruirse).</summary>
+    [System.NonSerialized] public bool yaEntregada = false;
+
     // ═══════════════════════════════════════════════════════════════════════
     // API PÚBLICA — INCENDIOS
     // ═══════════════════════════════════════════════════════════════════════
@@ -157,12 +160,12 @@ public class Laptop : MonoBehaviour, IExtinguishable
         if (_estadoFuego != EstadoFuego.EnLlamas) return;
 
         VolverANormal();
-        _timerActual   = 0f;
+        _timerActual = 0f;
         _timerEnLlamas = 0f;
         Debug.Log("Laptop: incendio apagado con el extintor.");
     }
 
-    public bool EstaEnLlamas()     => _estadoFuego == EstadoFuego.EnLlamas;
+    public bool EstaEnLlamas() => _estadoFuego == EstadoFuego.EnLlamas;
     public bool EstaEnAdvertencia() => _estadoFuego == EstadoFuego.Advertencia;
 
     // ── Implementación de IExtinguishable ───────────────────────────────────
@@ -248,10 +251,11 @@ public class Laptop : MonoBehaviour, IExtinguishable
 
     void EntrarEnLlamas()
     {
-        _estadoFuego  = EstadoFuego.EnLlamas;
+        _estadoFuego = EstadoFuego.EnLlamas;
         _timerEnLlamas = 0f;
         if (humoParticles != null) humoParticles.Stop();
         if (fuegoParticles != null) fuegoParticles.Play();
+        // GestureController.MostrarGestoATodos(TipoGesto.Panico); // pendiente: integrar sistema de gestos
         Debug.Log("Laptop: 🔥 ¡En llamas!");
     }
 
@@ -328,13 +332,13 @@ public class Laptop : MonoBehaviour, IExtinguishable
     {
         switch (problema)
         {
-            case Problema.Limpieza:           return icono_limpieza;
-            case Problema.Reparacion:         return icono_reparacion;
-            case Problema.Actualizacion:      return icono_actualizacion;
-            case Problema.NecesitaRAM:        return icono_ram;
-            case Problema.NecesitaHDD:        return icono_hdd;
+            case Problema.Limpieza: return icono_limpieza;
+            case Problema.Reparacion: return icono_reparacion;
+            case Problema.Actualizacion: return icono_actualizacion;
+            case Problema.NecesitaRAM: return icono_ram;
+            case Problema.NecesitaHDD: return icono_hdd;
             case Problema.NecesitaProcesador: return icono_procesador;
-            default:                          return null;
+            default: return null;
         }
     }
 }

@@ -60,6 +60,9 @@ public class DeliveryZone : InteractableTable
                                       alturaSobrePosicion: alturaIcono, tamano: tamanoIcono,
                                       rotacionExtra: estaCompleta ? rotacionIconoCorrecto : rotacionIconoIncorrecto);
 
+        // Ya quedó registrada: la limpieza de fin de nivel no debe contarla otra vez
+        laptopScript.yaEntregada = true;
+
         // Registrar en el GameManager
         if (GameManager.Instance != null)
         {

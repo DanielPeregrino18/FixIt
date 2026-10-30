@@ -97,7 +97,10 @@ public class MenuPrincipal : MonoBehaviour
         {
             Button btn = botonesMenu[_indice];
             if (btn != null && btn.gameObject.activeInHierarchy && btn.interactable)
+            {
+                AudioManager.Confirmar();
                 btn.onClick.Invoke();
+            }
         }
     }
 
@@ -105,7 +108,9 @@ public class MenuPrincipal : MonoBehaviour
 
     void MoverSeleccion(int delta)
     {
+        int anterior = _indice;
         _indice = Mathf.Clamp(_indice + delta, 0, botonesMenu.Length - 1);
+        if (_indice != anterior) AudioManager.Navegar();
         ActualizarSeleccion();
     }
 
@@ -144,6 +149,7 @@ public class MenuPrincipal : MonoBehaviour
             EventTrigger.Entry entrada = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
             entrada.callback.AddListener(_ =>
             {
+                if (_indice != indiceLocal) AudioManager.Navegar();
                 _indice = indiceLocal;
                 ActualizarSeleccion();
             });

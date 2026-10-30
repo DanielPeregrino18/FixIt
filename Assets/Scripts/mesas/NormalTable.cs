@@ -14,6 +14,8 @@ public class NormalTable : InteractableTable
 
     [Header("Configuración de Instalación")]
     public float tiempoInstalacion = 3f;
+    [Tooltip("Segundos que tiene el jugador, al quitar la pausa, para volver a pulsar el botón sin perder el progreso")]
+    public float graciaTrasPausa = 0.5f;
 
     [Header("Efecto visual — humo mientras se instala")]
     [Tooltip("Partículas que aparecen sobre la laptop mientras se instala la pieza, tapando el 'trabajo detallado'")]
@@ -23,6 +25,8 @@ public class NormalTable : InteractableTable
     private enum EstadoInstalacion { Inactivo, Instalando }
     private EstadoInstalacion _estadoInstalacion = EstadoInstalacion.Inactivo;
 
+    private bool _enPausa = false;
+    private float _graciaRestante = 0f;
     private float _timerInstalacion = 0f;
     private PlayerInteraction _jugadorInstalando = null;
     private GameObject _piezaInstalando = null;
@@ -39,15 +43,36 @@ public class NormalTable : InteractableTable
     {
         if (_estadoInstalacion != EstadoInstalacion.Instalando) return;
 
+        // En pausa todo queda congelado: soltar el botón no cancela nada
+        if (Time.timeScale == 0f)
+        {
+            _enPausa = true;
+            return;
+        }
+
+        // Al reanudar, se da un margen para volver a pulsar el botón
+        if (_enPausa)
+        {
+            _enPausa = false;
+            _graciaRestante = graciaTrasPausa;
+        }
+
         // Verificar que el jugador que instala SIGA manteniendo SU botón
         bool sigueManteniendo = _accionDelJugador != null && _accionDelJugador.IsPressed();
 
         if (!sigueManteniendo)
         {
+            if (_graciaRestante > 0f)
+            {
+                _graciaRestante -= Time.deltaTime; // esperando a que vuelva a pulsar
+                return;
+            }
+
             CancelarInstalacion();
             return;
         }
 
+        _graciaRestante = 0f;
         _timerInstalacion += Time.deltaTime;
         ActualizarBarra(_timerInstalacion / tiempoInstalacion);
 
@@ -192,7 +217,12 @@ public class NormalTable : InteractableTable
         _jugadorInstalando = player;
         _piezaInstalando = player.heldItem;
         _timerInstalacion = 0f;
+        _enPausa = false;
+        _graciaRestante = 0f;
         _estadoInstalacion = EstadoInstalacion.Instalando;
+
+        // El jugador se queda en su sitio mientras instala
+        BloquearMovimiento(player, true);
 
         if (barraUI != null) barraUI.SetActive(true);
         ActualizarBarra(0f);
@@ -211,6 +241,7 @@ public class NormalTable : InteractableTable
         // Si se cancela a medias, la pieza y las manos regresan a su lugar
         SetRenderersVisibles(_piezaInstalando, true);
         OcultarManos(_jugadorInstalando, false);
+        BloquearMovimiento(_jugadorInstalando, false);
         if (humoInstalacion != null) humoInstalacion.Stop();
 
         _estadoInstalacion = EstadoInstalacion.Inactivo;
@@ -234,6 +265,7 @@ public class NormalTable : InteractableTable
             humoInstalacion.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
 
         OcultarManos(_jugadorInstalando, false);
+        BloquearMovimiento(_jugadorInstalando, false);
 
         HardwarePiece pieza = _piezaInstalando.GetComponent<HardwarePiece>();
         Laptop laptopScript = currentItemOnTable.GetComponent<Laptop>();
@@ -273,6 +305,14 @@ public class NormalTable : InteractableTable
         _timerInstalacion = 0f;
 
         if (barraUI != null) barraUI.SetActive(false);
+    }
+
+    /// <summary>Bloquea o libera el movimiento del jugador que está instalando.</summary>
+    void BloquearMovimiento(PlayerInteraction jugador, bool bloquear)
+    {
+        if (jugador == null) return;
+        PlayerMovement pm = jugador.GetComponent<PlayerMovement>();
+        if (pm != null) pm.movimientoBloqueado = bloquear;
     }
 
     void ActualizarBarra(float valor)
@@ -343,6 +383,20 @@ public class NormalTable : InteractableTable
     /// <summary>Resetea la mesa por completo al iniciar un nivel nuevo (borra referencias a objetos de la sesión anterior).</summary>
     public void LimpiarParaNuevoNivel()
     {
+        BloquearMovimiento(_jugadorInstalando, false);
+
+        // Si el nivel se reinicia a mitad de una instalación: devolver las manos y el
+        // Animator al jugador y apagar el humo al instante
+        if (_estadoInstalacion == EstadoInstalacion.Instalando)
+        {
+            SetRenderersVisibles(_piezaInstalando, true);
+            OcultarManos(_jugadorInstalando, false);
+        }
+        if (humoInstalacion != null)
+            humoInstalacion.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        _enPausa = false;
+        _graciaRestante = 0f;
         _estadoInstalacion = EstadoInstalacion.Inactivo;
         _timerInstalacion = 0f;
         _jugadorInstalando = null;

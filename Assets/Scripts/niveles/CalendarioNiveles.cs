@@ -142,7 +142,9 @@ public class CalendarioNiveles : MonoBehaviour
             }
         }
 
-        if (confirmar) ConfirmarSeleccion();
+        // También se ignora un instante tras aparecer la pantalla, para que la pulsación que
+        // te trajo hasta aquí (ej. "Continuar" en resultados) no elija un nivel por accidente
+        if (confirmar && _timerEntrada <= 0f) ConfirmarSeleccion();
     }
 
     // ── Construcción del calendario ────────────────────────────────────────────
@@ -285,6 +287,7 @@ public class CalendarioNiveles : MonoBehaviour
         if (nuevoIndex != _cursorIndex)
         {
             _cursorIndex = nuevoIndex;
+            AudioManager.Navegar();
             ActualizarVisualCursor();
         }
     }
@@ -311,6 +314,7 @@ public class CalendarioNiveles : MonoBehaviour
     void ConfirmarSeleccion()
     {
         if (_cursorIndex < 0 || _cursorIndex >= _celdasNavegables.Count) return;
+        AudioManager.Confirmar();
         SeleccionarNivel(_celdasNavegables[_cursorIndex].numeroNivel);
     }
 

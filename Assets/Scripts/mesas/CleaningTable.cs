@@ -47,6 +47,9 @@ public class CleaningTable : InteractableTable
 
     void Update()
     {
+        // En pausa el joystick no debe avanzar la limpieza
+        if (Time.timeScale == 0f) return;
+
         if (_estado == Estado.Limpiando)
             LeerJoystick();
     }
@@ -63,7 +66,7 @@ public class CleaningTable : InteractableTable
             DejarLaptop(player);
         }
         else if (!playerHasItem && tableHasItem &&
-                (_estado == Estado.Lista || _estado == Estado.Vacia))
+                (_estado == Estado.Lista || _estado == Estado.Vacia || _estado == Estado.EsperandoIniciar))
         {
             Laptop laptopCheck = currentItemOnTable.GetComponent<Laptop>();
             if (laptopCheck != null && !laptopCheck.PuedeRecogerse())

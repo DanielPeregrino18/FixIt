@@ -97,6 +97,8 @@ public class LobbyManager : MonoBehaviour
         int primerDisponible = PrimerPersonajeDisponible();
         secciones[id - 1].Activar(id, primerDisponible);
 
+        AudioManager.Confirmar(); // sonido al unirse al lobby
+
         Debug.Log($"LobbyManager: Jugador {id} registrado con {dispositivo}");
     }
 

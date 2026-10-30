@@ -78,6 +78,7 @@ public class LobbySection : MonoBehaviour
         if (!_activo || _listo) return;
         _personajeActual--;
         if (_personajeActual < 0) _personajeActual = LobbyManager.Instance.TotalPersonajes() - 1;
+        AudioManager.CambioPersonaje();
         ActualizarNombrePersonaje();
         ActualizarFotoPersonaje();
     }
@@ -89,6 +90,7 @@ public class LobbySection : MonoBehaviour
         _personajeActual++;
         if (_personajeActual >= LobbyManager.Instance.TotalPersonajes())
             _personajeActual = 0;
+        AudioManager.CambioPersonaje();
         ActualizarNombrePersonaje();
         ActualizarFotoPersonaje();
     }
@@ -106,6 +108,7 @@ public class LobbySection : MonoBehaviour
         }
 
         _listo = true;
+        AudioManager.Confirmar();
         LobbyManager.Instance.OnJugadorListo(_jugadorId, _personajeActual);
         MostrarListo();
     }
