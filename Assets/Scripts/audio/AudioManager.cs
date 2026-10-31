@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 /// <summary>
 /// Maneja la música del juego. Por ahora: la canción del nivel.
@@ -57,8 +58,28 @@ public class AudioManager : MonoBehaviour
     public AudioClip sonidoCambioPersonaje;
     [Range(0f, 1f)] public float volumenInterfaz = 1f;
 
+    [Header("Efectos del juego")]
+    [Tooltip("Golpe del martillo en la mesa de reparación (uno por pulsación)")]
+    public AudioClip sonidoGolpe;
+    [Header("Aire comprimido (mesa de limpieza)")]
+    [Tooltip("Suena una vez al empezar a limpiar; justo al terminar entra el loop")]
+    public AudioClip sonidoAireInicio;
+    [Tooltip("Se repite mientras dura la limpieza")]
+    [FormerlySerializedAs("sonidoAireComprimido")]
+    public AudioClip sonidoAireLoop;
+    [Tooltip("Suena una vez al terminar o cancelar la limpieza")]
+    public AudioClip sonidoAireFinal;
+
+    [Header("Volumen de efectos")]
+    [Range(0f, 1f)] public float volumenEfectos = 1f;
+
+    private AudioSource _fuenteAire;
+    private AudioSource _fuenteAireExtremos; // inicio y final del aire
+    private int _limpiezasActivas = 0; // cuántas mesas de limpieza están en uso a la vez
+
     private AudioSource _fuenteSfx;
     private AudioSource _fuenteUI;
+    private AudioSource _fuenteEfectos;
     private Coroutine _sonidoResultadoPendiente;
 
     private AudioSource _fuenteMusica;
@@ -90,6 +111,79 @@ public class AudioManager : MonoBehaviour
         _menuB = CrearFuenteMenu();
         _fuenteSfx = CrearFuenteMenu(); // fuente aparte para efectos: no la cortan los fundidos de la música
         _fuenteUI = CrearFuenteMenu(); // y otra para los sonidos de menús, que nunca se cortan entre sí con otros
+        _fuenteEfectos = CrearFuenteMenu(); // efectos del juego (golpes, etc.)
+
+        _fuenteAire = CrearFuenteMenu();
+        _fuenteAire.loop = true;
+        _fuenteAireExtremos = CrearFuenteMenu();
+    }
+
+    // ── Aire comprimido (loop mientras alguien limpia) ────────────────────────
+    // Si dos jugadores limpian a la vez, el sonido sigue hasta que termine el último.
+
+    public static void IniciarAireComprimido() { if (Instance != null) Instance.AireMasUno(); }
+    public static void DetenerAireComprimido() { if (Instance != null) Instance.AireMenosUno(); }
+
+    void AireMasUno()
+    {
+        _limpiezasActivas++;
+        if (_limpiezasActivas != 1 || _fuenteAire == null) return;
+
+        // 1. Sonido de inicio
+        if (sonidoAireInicio != null)
+        {
+            _fuenteAireExtremos.Stop();
+            _fuenteAireExtremos.clip = sonidoAireInicio;
+            _fuenteAireExtremos.volume = volumenEfectos;
+            _fuenteAireExtremos.Play();
+        }
+
+        // 2. Loop: entra justo cuando termina el inicio (programado, sin hueco)
+        if (sonidoAireLoop != null)
+        {
+            _fuenteAire.Stop();
+            _fuenteAire.clip = sonidoAireLoop;
+            _fuenteAire.volume = volumenEfectos;
+            if (sonidoAireInicio != null)
+                _fuenteAire.PlayScheduled(AudioSettings.dspTime + sonidoAireInicio.length);
+            else
+                _fuenteAire.Play();
+        }
+    }
+
+    void AireMenosUno()
+    {
+        if (_limpiezasActivas <= 0) return;
+        _limpiezasActivas--;
+        if (_limpiezasActivas > 0 || _fuenteAire == null) return;
+
+        // Se corta el loop (o su arranque programado) y suena el final
+        _fuenteAire.Stop();
+        if (sonidoAireFinal != null)
+        {
+            _fuenteAireExtremos.Stop(); // por si el inicio aún no había terminado
+            _fuenteAireExtremos.clip = sonidoAireFinal;
+            _fuenteAireExtremos.volume = volumenEfectos;
+            _fuenteAireExtremos.Play();
+        }
+    }
+
+    /// <summary>Apaga todo el aire en seco, sin sonido final (fin de nivel, reinicio o salir al menú).</summary>
+    void ReiniciarAire()
+    {
+        _limpiezasActivas = 0;
+        if (_fuenteAire != null) _fuenteAire.Stop();
+        if (_fuenteAireExtremos != null) _fuenteAireExtremos.Stop();
+    }
+
+    // ── Efectos del juego ─────────────────────────────────────────────────────
+
+    public static void Golpe() { if (Instance != null) Instance.ReproducirEfecto(Instance.sonidoGolpe); }
+
+    void ReproducirEfecto(AudioClip clip)
+    {
+        if (clip == null || _fuenteEfectos == null) return;
+        _fuenteEfectos.PlayOneShot(clip, volumenEfectos); // PlayOneShot permite que varios golpes seguidos se solapen
     }
 
     // ── Sonidos de interfaz ───────────────────────────────────────────────────
@@ -262,6 +356,7 @@ public class AudioManager : MonoBehaviour
     {
         if (musicaNivel == null || _fuenteMusica == null) return;
 
+        ReiniciarAire();
         DetenerSonidoResultado(); // si venías de unos resultados, que su sonido no se solape
         DetenerMusicaMenu(true); // por si el nivel arranca con la música de menú aún sonando
         CancelarFundido();
@@ -304,6 +399,9 @@ public class AudioManager : MonoBehaviour
 
     public void PausarMusica()
     {
+        // El aire también se calla en pausa
+        if (_fuenteAire != null && _fuenteAire.isPlaying) _fuenteAire.Pause();
+        if (_fuenteAireExtremos != null && _fuenteAireExtremos.isPlaying) _fuenteAireExtremos.Pause();
         if (_fuenteMusica == null || !_fuenteMusica.isPlaying) return;
         _fuenteMusica.Pause();
         _pausada = true;
@@ -311,6 +409,8 @@ public class AudioManager : MonoBehaviour
 
     public void ReanudarMusica()
     {
+        if (_fuenteAire != null && _limpiezasActivas > 0) _fuenteAire.UnPause();
+        if (_fuenteAireExtremos != null) _fuenteAireExtremos.UnPause();
         if (_fuenteMusica == null || !_pausada) return;
         _pausada = false;
         _fuenteMusica.UnPause();
@@ -321,6 +421,7 @@ public class AudioManager : MonoBehaviour
     {
         if (_fuenteMusica == null) return;
         CancelarInicioPendiente();                                      // si aún no había arrancado, que no arranque
+        ReiniciarAire();                                                // el nivel terminó: el aire se apaga
         if (_fundido != null) return;                                   // ya se está apagando
         if (!_fuenteMusica.isPlaying && !_pausada) return;              // ya está detenida
 
@@ -335,6 +436,7 @@ public class AudioManager : MonoBehaviour
         CancelarFundido();
         CancelarInicioPendiente();
         DetenerSonidoResultado();
+        ReiniciarAire();
         _pausada = false;
         _fuenteMusica.Stop();
         _fuenteMusica.volume = volumenMusica;

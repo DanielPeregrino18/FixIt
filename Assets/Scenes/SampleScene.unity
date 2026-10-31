@@ -10100,6 +10100,11 @@ MonoBehaviour:
   sonidoConfirmar: {fileID: 8300000, guid: 9bdbf4b70d7a61e49b6c7b524a119542, type: 3}
   sonidoCambioPersonaje: {fileID: 8300000, guid: 48c2796c206e170429cdb0eb72096040, type: 3}
   volumenInterfaz: 1
+  sonidoGolpe: {fileID: 8300000, guid: f6c22c9e7284ff3458c88d6339b2dfb3, type: 3}
+  sonidoAireInicio: {fileID: 8300000, guid: ababbd0ad9639b44d91ca93987b2e25e, type: 3}
+  sonidoAireLoop: {fileID: 8300000, guid: b992d26998336124b8986ab12f279a85, type: 3}
+  sonidoAireFinal: {fileID: 8300000, guid: 0a839f75bb357934d88bcd38f61544f3, type: 3}
+  volumenEfectos: 1
 --- !u!4 &466385438
 Transform:
   m_ObjectHideFlags: 0

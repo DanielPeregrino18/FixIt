@@ -32,6 +32,7 @@ public class CleaningTable : InteractableTable
     private bool _joystickFueDerecha = false;
     private int _ultimoLadoContado = 0; // 0 = ninguno todavía, -1 = izquierda, 1 = derecha
     private GameObject _lataInstanciada = null;
+    private bool _aireSonando = false; // esta mesa tiene encendido el sonido del aire
 
     // Jugador que está usando ESTA mesa — su joystick es el único que cuenta
     private PlayerInteraction _jugadorLimpiando = null;
@@ -189,6 +190,9 @@ public class CleaningTable : InteractableTable
 
         _estado = Estado.Limpiando;
         _movimientosCompletados = 0;
+
+        // Aire comprimido: suena en loop mientras dure la limpieza
+        if (!_aireSonando) { _aireSonando = true; AudioManager.IniciarAireComprimido(); }
         _joystickFueIzquierda = false;
         _joystickFueDerecha = false;
         _ultimoLadoContado = 0;
@@ -278,11 +282,20 @@ public class CleaningTable : InteractableTable
     /// <summary>Detiene el aire, destruye la lata y apaga su interruptor en el Animator.</summary>
     void QuitarLata(PlayerInteraction jugador)
     {
+        DetenerSonidoAire();
+
         if (_lataInstanciada != null) Destroy(_lataInstanciada);
         _lataInstanciada = null;
 
         if (jugador != null && jugador.anim != null)
             jugador.anim.SetBool("LimpiandoLata", false);
+    }
+
+    void DetenerSonidoAire()
+    {
+        if (!_aireSonando) return;
+        _aireSonando = false;
+        AudioManager.DetenerAireComprimido();
     }
 
     void DesbloquearJugador()
@@ -395,6 +408,7 @@ public class CleaningTable : InteractableTable
         if (_lataInstanciada != null) Destroy(_lataInstanciada);
         _lataInstanciada = null;
 
+        DetenerSonidoAire();
         DesbloquearJugador();
         _moveDelJugador = null;
         _estado = Estado.Vacia;

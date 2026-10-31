@@ -211,12 +211,16 @@ public class RepairTable : InteractableTable
         if (player.anim != null)
             player.anim.SetBool("SosteniendoMartillo", true);
 
+        // La primera pulsación (la que inicia el minijuego) también da un golpe
+        AudioManager.Golpe();
+
         Debug.Log("RepairTable: ¡Minijuego iniciado! Pulsa el botón para reparar.");
     }
 
     void ContarPulsacion()
     {
         _pulsacionesCompletadas++;
+        AudioManager.Golpe();
         ActualizarBarra();
         Debug.Log($"RepairTable: Pulsación {_pulsacionesCompletadas}/{pulsacionesRequeridas}");
 
