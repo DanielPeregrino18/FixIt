@@ -19,10 +19,9 @@ public class ProgressManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
 
-        // ── Único lugar que decide la fuente de datos ──────────────────────
-        // Cuando exista la base de datos remota del proyecto, cambiar esta
-        // línea por: _store = new RemoteProgressStore(...);
-        _store = new LocalProgressStore();
+        string testUserId = "6ae69f4cf3d30eec400e04e5";
+        
+        _store = new RemoteProgressStore(testUserId, this); // ← Usa el remoto
     }
 
     public int ObtenerEstrellas(int nivel) => _store.ObtenerEstrellas(nivel);
