@@ -11,6 +11,8 @@ using TMPro;
 /// </summary>
 public class GameManager : MonoBehaviour
 {
+    // Configuracion de variables para el login
+    private string currentUserId;
     public static GameManager Instance { get; private set; }
 
     // ── Configuración del nivel ───────────────────────────────────────────────
@@ -164,6 +166,9 @@ public class GameManager : MonoBehaviour
 
     /// <summary>Score de la última partida (0 si fue Game Over). Para enviarlo al backend.</summary>
     public int ScoreFinal { get; private set; }
+
+    /// <summary>Estrellas ganadas en la última partida (0 si fue Game Over). Para enviarlo al backend.</summary>
+    public int EstrellasFinales { get; private set; }
 
     private int _segundosSobrantes = 0;
     private int _scoreMostrado = 0;
@@ -441,6 +446,7 @@ public class GameManager : MonoBehaviour
         }
 
         int estrellaGanadas = CalcularEstrellas();
+        EstrellasFinales = estrellaGanadas;
 
         // NUEVO: guardar el progreso
         if (ProgressManager.Instance != null && _nivelActualNumero > 0)
@@ -448,6 +454,7 @@ public class GameManager : MonoBehaviour
 
         int score = estrellaGanadas * puntosPorEstrella
                   + Mathf.FloorToInt(_segundosSobrantes * puntosPorSegundoSobrante);
+        ScoreFinal = score;
         Debug.Log($"GameManager: Score = {estrellaGanadas}★ × {puntosPorEstrella} + {_segundosSobrantes} s = {score}");
 
         MostrarResultados(estrellaGanadas, false, "", score);
@@ -462,6 +469,12 @@ public class GameManager : MonoBehaviour
 
         // Limpieza de objetos por prolijidad (no afecta el resultado, ya es 0 estrellas)
         LimpiarLaptopsSinEntregar(contarComoPerdidas: false);
+
+        EstrellasFinales = 0;
+        ScoreFinal = 0;
+
+        if (ProgressManager.Instance != null && _nivelActualNumero > 0)
+            ProgressManager.Instance.GuardarResultado(_nivelActualNumero, 0);
 
         Debug.Log($"GameManager: GAME OVER — {motivo}");
         MostrarResultados(0, true, motivo);
@@ -1065,4 +1078,11 @@ public class GameManager : MonoBehaviour
 
         if (objetivo != null) objetivo.localScale = Vector3.one;
     }
+
+
+    // ── NUEVOS ACCESORES PARA LA RED ─────────────────────────────────────────
+    public int NivelActualNumero => _nivelActualNumero;
+    public int LaptopsEntregadas => _laptopsEntregadas;
+    public int LaptopsPerdidas => _laptopsPerdidas;
+
 }

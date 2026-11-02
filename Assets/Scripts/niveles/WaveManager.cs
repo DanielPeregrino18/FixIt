@@ -234,11 +234,24 @@ public class WaveManager : MonoBehaviour
         Debug.Log($"WaveManager: Nivel anterior limpiado — {laptopsDestruidas} laptops y {piezasDestruidas} piezas destruidas.");
     }
 
-    /// <summary>Detiene por completo las oleadas en curso (usado al salir al menú desde la Pausa).</summary>
+    /// <summary>
+    /// Detiene por completo las oleadas en curso y recopila los datos REALES y FINALES para enviarlos a la red.
+    /// </summary>
     public void DetenerNivel()
     {
         StopAllCoroutines();
         _corriendo = false;
+
+        // 1. Obtener datos REALES y FINALES del GameManager
+        int nivelNumero = GameManager.Instance != null ? GameManager.Instance.NivelActualNumero : 1;
+        int estrellas = GameManager.Instance != null ? GameManager.Instance.EstrellasFinales : 0; // ← CAMBIO AQUÍ
+        int score = GameManager.Instance != null ? GameManager.Instance.ScoreFinal : 0;           // ← Y AQUÍ
+        int ticketsComp = GameManager.Instance != null ? GameManager.Instance.LaptopsEntregadas : 0;
+        int ticketsFail = GameManager.Instance != null ? GameManager.Instance.LaptopsPerdidas : 0;
+        int duracion = GameManager.Instance != null ? Mathf.FloorToInt(GameManager.Instance.TiempoTranscurrido) : 0;
+
+        // 2. Llamar a la función de guardado con los datos reales
+        OnLevelComplete(nivelNumero, score, estrellas, ticketsComp, ticketsFail, duracion);
     }
 
     void SpawnLaptop(string tipo)
@@ -290,5 +303,58 @@ public class WaveManager : MonoBehaviour
         laptop.problemasActivos.Clear();
         for (int i = 0; i < Mathf.Min(cantidad, mezclado.Count); i++)
             laptop.problemasActivos.Add(mezclado[i]);
+    }
+
+    /// <summary>
+    /// Construye el payload JSON limpio y lo envía al backend de Render.
+    /// </summary>
+    private void OnLevelComplete(int nivelNumero, int score, int estrellas, int ticketsComp, int ticketsFail, int duracion)
+    {
+        Debug.Log($"WaveManager: Nivel {nivelNumero} completado — Score: {score}, Stars: {estrellas}, Tickets: {ticketsComp}/{ticketsFail}, Duration: {duracion}s");
+
+        // 1. Verificación de seguridad
+        if (GameSessionSaver.Instance == null)
+        {
+            Debug.LogError("❌ CRÍTICO: GameSessionSaver.Instance es NULL. Asegúrate de añadir el script GameSessionSaver a un GameObject en la escena.");
+            return;
+        }
+
+        // 2. IDs para el backend (el backend espera strings)
+        string worldId = "world_1";
+        string levelId = $"nivel_{nivelNumero}";
+
+        // 3. ObjectId de prueba válido (24 caracteres hex)
+        string testUserId = "6ae69f4cf3d30eec400e04e5";
+
+        // 4. Crear el payload LIMPIO (sin _id, para que MongoDB lo genere)
+        SessionCreateRequest cleanRequest = new SessionCreateRequest
+        {
+            levelId = levelId,
+            worldId = worldId,
+            players = new List<string> { testUserId },
+            score = score,
+            starsEarned = estrellas,
+            ticketsCompleted = ticketsComp,
+            ticketsFailed = ticketsFail,
+            durationSeconds = duracion,
+            equipment = "Laptop",
+            repairType = "Otros",
+            completed = true
+        };
+
+        Debug.Log($"📤 ENVIANDO SESIÓN REAL A LA RED: {levelId} | Score: {score} | Tickets: {ticketsComp}/{ticketsFail}");
+
+        // 5. ¡AQUÍ ESTÁ LA MAGIA! Usamos el nuevo método limpio
+        FixItNetworkManager.Instance.PostSessionClean(
+            sessionRequest: cleanRequest,
+            onSuccess: (savedSession) =>
+            {
+                Debug.Log($"✅ ¡ÉXITO! Sesión guardada en MongoDB con ID: {savedSession._id}");
+            },
+            onError: (error) =>
+            {
+                Debug.LogError($"❌ FALLÓ el envío a la base de datos: {error}");
+            }
+        );
     }
 }
