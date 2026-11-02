@@ -32,6 +32,13 @@ public class CoffeeMachine : InteractableTable
             return;
         }
 
+        // Con las manos ocupadas no se puede tomar café: hay que soltar lo que lleva
+        if (player.isHoldingItem)
+        {
+            Debug.Log("CoffeeMachine: Suelta lo que llevas para tomar café.");
+            return;
+        }
+
         PlayerMovement pm = player.GetComponent<PlayerMovement>();
         if (pm == null) return;
 

@@ -349,12 +349,16 @@ public class PlayerInteraction : MonoBehaviour
 
     void ActualizarUsoExtintor()
     {
-        if (!isHoldingItem) return;
+        // Sin extintor en la mano, el sonido del extintor de este jugador se apaga
+        if (!isHoldingItem) { AudioManager.DetenerExtintor(this); return; }
 
         Extinguisher ext = heldItem.GetComponent<Extinguisher>();
-        if (ext == null) return;
+        if (ext == null) { AudioManager.DetenerExtintor(this); return; }
 
         bool usando = _useAction != null && _useAction.IsPressed() && ext.TieneCarga();
+
+        if (usando) AudioManager.IniciarExtintor(this);
+        else AudioManager.DetenerExtintor(this);
 
         if (ext.espumaParticles != null)
         {

@@ -70,11 +70,24 @@ public class AudioManager : MonoBehaviour
     [Tooltip("Suena una vez al terminar o cancelar la limpieza")]
     public AudioClip sonidoAireFinal;
 
+    [Header("Extintor")]
+    [Tooltip("Suena una vez al empezar a rociar; justo al terminar entra el loop")]
+    public AudioClip sonidoExtintorInicio;
+    [Tooltip("Se repite mientras se rocía")]
+    public AudioClip sonidoExtintorLoop;
+    [Tooltip("Suena una vez al dejar de rociar")]
+    public AudioClip sonidoExtintorFin;
+
     [Header("Volumen de efectos")]
     [Range(0f, 1f)] public float volumenEfectos = 1f;
 
     private AudioSource _fuenteAire;
     private AudioSource _fuenteAireExtremos; // inicio y final del aire
+
+    // Extintor: varios jugadores pueden rociar a la vez; el sonido es uno solo
+    private AudioSource _fuenteExtintor;
+    private AudioSource _fuenteExtintorExtremos;
+    private readonly System.Collections.Generic.HashSet<object> _usuariosExtintor = new System.Collections.Generic.HashSet<object>();
     private int _limpiezasActivas = 0; // cuántas mesas de limpieza están en uso a la vez
 
     private AudioSource _fuenteSfx;
@@ -116,6 +129,66 @@ public class AudioManager : MonoBehaviour
         _fuenteAire = CrearFuenteMenu();
         _fuenteAire.loop = true;
         _fuenteAireExtremos = CrearFuenteMenu();
+
+        _fuenteExtintor = CrearFuenteMenu();
+        _fuenteExtintor.loop = true;
+        _fuenteExtintorExtremos = CrearFuenteMenu();
+    }
+
+    // ── Extintor (inicio → loop → fin) ────────────────────────────────────────
+    // Se llama cada frame desde el jugador que lo sostiene: no hace nada si el estado no cambia.
+
+    public static void IniciarExtintor(object quien) { if (Instance != null) Instance.ExtintorUsar(quien, true); }
+    public static void DetenerExtintor(object quien) { if (Instance != null) Instance.ExtintorUsar(quien, false); }
+
+    void ExtintorUsar(object quien, bool usando)
+    {
+        if (usando)
+        {
+            if (!_usuariosExtintor.Add(quien)) return;      // ya estaba rociando
+            if (_usuariosExtintor.Count != 1) return;       // otro jugador ya tiene el sonido encendido
+
+            if (sonidoExtintorInicio != null)
+            {
+                _fuenteExtintorExtremos.Stop();
+                _fuenteExtintorExtremos.clip = sonidoExtintorInicio;
+                _fuenteExtintorExtremos.volume = volumenEfectos;
+                _fuenteExtintorExtremos.Play();
+            }
+
+            if (sonidoExtintorLoop != null)
+            {
+                _fuenteExtintor.Stop();
+                _fuenteExtintor.clip = sonidoExtintorLoop;
+                _fuenteExtintor.volume = volumenEfectos;
+                if (sonidoExtintorInicio != null)
+                    _fuenteExtintor.PlayScheduled(AudioSettings.dspTime + sonidoExtintorInicio.length);
+                else
+                    _fuenteExtintor.Play();
+            }
+        }
+        else
+        {
+            if (!_usuariosExtintor.Remove(quien)) return;   // no estaba rociando
+            if (_usuariosExtintor.Count > 0) return;        // aún hay otro rociando
+
+            _fuenteExtintor.Stop();
+            if (sonidoExtintorFin != null)
+            {
+                _fuenteExtintorExtremos.Stop();
+                _fuenteExtintorExtremos.clip = sonidoExtintorFin;
+                _fuenteExtintorExtremos.volume = volumenEfectos;
+                _fuenteExtintorExtremos.Play();
+            }
+        }
+    }
+
+    /// <summary>Apaga el extintor en seco, sin sonido final (fin de nivel, reinicio o salir al menú).</summary>
+    void ReiniciarExtintor()
+    {
+        _usuariosExtintor.Clear();
+        if (_fuenteExtintor != null) _fuenteExtintor.Stop();
+        if (_fuenteExtintorExtremos != null) _fuenteExtintorExtremos.Stop();
     }
 
     // ── Aire comprimido (loop mientras alguien limpia) ────────────────────────
@@ -174,6 +247,7 @@ public class AudioManager : MonoBehaviour
         _limpiezasActivas = 0;
         if (_fuenteAire != null) _fuenteAire.Stop();
         if (_fuenteAireExtremos != null) _fuenteAireExtremos.Stop();
+        ReiniciarExtintor(); // los efectos de uso continuo se apagan juntos
     }
 
     // ── Efectos del juego ─────────────────────────────────────────────────────
@@ -402,6 +476,8 @@ public class AudioManager : MonoBehaviour
         // El aire también se calla en pausa
         if (_fuenteAire != null && _fuenteAire.isPlaying) _fuenteAire.Pause();
         if (_fuenteAireExtremos != null && _fuenteAireExtremos.isPlaying) _fuenteAireExtremos.Pause();
+        if (_fuenteExtintor != null && _fuenteExtintor.isPlaying) _fuenteExtintor.Pause();
+        if (_fuenteExtintorExtremos != null && _fuenteExtintorExtremos.isPlaying) _fuenteExtintorExtremos.Pause();
         if (_fuenteMusica == null || !_fuenteMusica.isPlaying) return;
         _fuenteMusica.Pause();
         _pausada = true;
@@ -411,6 +487,8 @@ public class AudioManager : MonoBehaviour
     {
         if (_fuenteAire != null && _limpiezasActivas > 0) _fuenteAire.UnPause();
         if (_fuenteAireExtremos != null) _fuenteAireExtremos.UnPause();
+        if (_fuenteExtintor != null && _usuariosExtintor.Count > 0) _fuenteExtintor.UnPause();
+        if (_fuenteExtintorExtremos != null) _fuenteExtintorExtremos.UnPause();
         if (_fuenteMusica == null || !_pausada) return;
         _pausada = false;
         _fuenteMusica.UnPause();

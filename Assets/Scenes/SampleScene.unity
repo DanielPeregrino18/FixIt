@@ -10104,6 +10104,9 @@ MonoBehaviour:
   sonidoAireInicio: {fileID: 8300000, guid: ababbd0ad9639b44d91ca93987b2e25e, type: 3}
   sonidoAireLoop: {fileID: 8300000, guid: b992d26998336124b8986ab12f279a85, type: 3}
   sonidoAireFinal: {fileID: 8300000, guid: 0a839f75bb357934d88bcd38f61544f3, type: 3}
+  sonidoExtintorInicio: {fileID: 8300000, guid: 25c06357d14c64d4984d20e52df846dc, type: 3}
+  sonidoExtintorLoop: {fileID: 8300000, guid: 25c06357d14c64d4984d20e52df846dc, type: 3}
+  sonidoExtintorFin: {fileID: 8300000, guid: c8c94bb27f099d543a730b555cb54985, type: 3}
   volumenEfectos: 1
 --- !u!4 &466385438
 Transform:
