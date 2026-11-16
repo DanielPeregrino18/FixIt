@@ -349,6 +349,8 @@ public class PiezaLanzada : MonoBehaviour
         }
         PickableItem pi = GetComponent<PickableItem>();
         if (pi != null) pi.isInteractable = true;
+
+        EfectosPolvo.Puff(new Vector3(transform.position.x, _sueloY + 0.05f, transform.position.z), 10, 0.3f);
     }
 
     /// <summary>Red de seguridad: si tras aterrizar se cae por debajo del piso, vuelve al punto de caída.</summary>

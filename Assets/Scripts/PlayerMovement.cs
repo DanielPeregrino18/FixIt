@@ -16,6 +16,18 @@ public class PlayerMovement : MonoBehaviour
     public float staminaActual = 100f;
     public float consumoPorSegundo = 10f;
 
+    [Header("Polvo al correr")]
+    [Tooltip("Material de las nubecitas (Mat_PolvoLowPoly). Sin material no sale polvo")]
+    public Material materialPolvo;
+    [Tooltip("Color de las nubecitas")]
+    public Color colorPolvo = new Color(0.93f, 0.91f, 0.87f, 1f);
+    [Tooltip("Nubecitas por metro recorrido mientras corre")]
+    public float polvoPorMetro = 5f;
+    [Tooltip("Tamaño de cada nubecita")]
+    public float tamañoPolvo = 0.35f;
+    [Tooltip("Nubecitas del estallido al arrancar a correr (0 = sin estallido)")]
+    public int polvoAlArrancar = 8;
+
     [HideInInspector] public bool movimientoBloqueado = false;
 
     // ── Variables internas ────────────────────────────────────────────────────
@@ -26,6 +38,11 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>True mientras corre (lo usa el lanzamiento de piezas para llegar más lejos).</summary>
     public bool EstaSprintando => _sprintando;
     private bool _usingPlayerInput = false;
+
+    private bool _sprintandoAntes;
+    private Vector3 _ultimaPosPolvo;
+    private float _distanciaPolvo;
+    private float _alturaPies; // distancia del pivote a los pies (negativa si el pivote está arriba)
 
     private InputAction moveAction;
     private InputAction sprintAction;
@@ -86,11 +103,59 @@ public class PlayerMovement : MonoBehaviour
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+
+        // Los pies: la parte de abajo del collider del jugador
+        Collider col = GetComponent<Collider>();
+        _alturaPies = col != null ? col.bounds.min.y - transform.position.y : 0f;
+
+        EfectosPolvo.Registrar(materialPolvo);
+        _ultimaPosPolvo = transform.position;
+    }
+
+    /// <summary>
+    /// Rastro de polvo mientras corre (una nubecita cada cierta distancia recorrida de verdad,
+    /// así contra una pared casi no sale) y un estallido al arrancar.
+    /// </summary>
+    void ActualizarPolvo()
+    {
+        Vector3 pos = transform.position;
+        if (materialPolvo == null) { _ultimaPosPolvo = pos; return; }
+
+        Vector3 pies = pos + Vector3.up * (_alturaPies + 0.1f);
+
+        if (_sprintando)
+        {
+            if (!_sprintandoAntes)
+            {
+                _distanciaPolvo = 0f;
+                if (polvoAlArrancar > 0) EfectosPolvo.Puff(pies, polvoAlArrancar, tamañoPolvo, colorPolvo);
+            }
+
+            Vector3 delta = pos - _ultimaPosPolvo;
+            delta.y = 0f;
+            _distanciaPolvo += delta.magnitude;
+
+            float cada = 1f / Mathf.Max(0.1f, polvoPorMetro);
+            int emitidas = 0;
+            while (_distanciaPolvo >= cada && emitidas < 5)
+            {
+                _distanciaPolvo -= cada;
+                emitidas++;
+
+                Vector3 atras = -transform.forward;
+                Vector3 p = pies + atras * 0.25f + new Vector3(Random.Range(-0.15f, 0.15f), 0f, Random.Range(-0.15f, 0.15f));
+                Vector3 v = atras * Random.Range(0.3f, 0.8f) + Vector3.up * Random.Range(0.3f, 0.7f);
+                EfectosPolvo.Nube(p, v, tamañoPolvo * Random.Range(0.6f, 1f), colorPolvo, Random.Range(0.45f, 0.7f));
+            }
+        }
+
+        _ultimaPosPolvo = pos;
+        _sprintandoAntes = _sprintando;
     }
 
     void Update()
     {
-        if (movimientoBloqueado) { movement = Vector3.zero; return; }
+        if (movimientoBloqueado) { movement = Vector3.zero; _sprintando = false; ActualizarPolvo(); return; }
 
         Vector2 inputValues = moveAction != null
             ? moveAction.ReadValue<Vector2>()
@@ -108,6 +173,8 @@ public class PlayerMovement : MonoBehaviour
             staminaActual = Mathf.Clamp(staminaActual, 0f, staminaMaxima);
             if (staminaActual <= 0f) _sprintando = false;
         }
+
+        ActualizarPolvo();
 
         if (movement != Vector3.zero)
         {

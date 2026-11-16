@@ -389,6 +389,11 @@ MonoBehaviour:
   staminaActual: 100
   consumoPorSegundo: 3
   movimientoBloqueado: 0
+  materialPolvo: {fileID: 2100000, guid: 90f6192fe96744c2a3703169b892a0f6, type: 2}
+  colorPolvo: {r: 0.93, g: 0.91, b: 0.87, a: 1}
+  polvoPorMetro: 5
+  tamañoPolvo: 0.35
+  polvoAlArrancar: 8
 --- !u!114 &5597637559273154928
 MonoBehaviour:
   m_ObjectHideFlags: 0
