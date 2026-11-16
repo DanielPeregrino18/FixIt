@@ -66,6 +66,9 @@ public class DeliveryZone : InteractableTable
         if (estaCompleta) AudioManager.EntregaCorrecta();
         else AudioManager.EntregaIncorrecta();
 
+        // Brinquito de festejo o desánimo del jugador que entregó
+        if (player.TryGetComponent(out ProceduralHead animacion)) animacion.ReaccionEntrega(estaCompleta);
+
         // Registrar en el GameManager
         if (GameManager.Instance != null)
         {

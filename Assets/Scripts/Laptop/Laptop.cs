@@ -274,6 +274,7 @@ public class Laptop : MonoBehaviour, IExtinguishable
         Debug.Log("Laptop: 💀 Calcinada, se pierde.");
 
         AudioManager.ExplosionLaptop();
+        ProceduralHead.Susto(transform.position); // los jugadores cercanos se asustan
 
         if (GameManager.Instance != null)
             GameManager.Instance.RegistrarLaptopPerdida();

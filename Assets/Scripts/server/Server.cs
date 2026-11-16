@@ -191,6 +191,7 @@ public class Server : MonoBehaviour, IExtinguishable
         // Suena la explosión y el loop de llamas se corta
         AudioManager.DetenerLlamasServidor(this);
         AudioManager.ExplosionServidor();
+        ProceduralHead.Susto(transform.position, 1.3f); // el servidor asusta un poco más que una laptop
 
         if (explosionParticles != null)
         {

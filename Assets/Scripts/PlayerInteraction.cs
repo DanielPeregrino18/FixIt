@@ -359,8 +359,13 @@ public class PlayerInteraction : MonoBehaviour
 
     // ── Uso del extintor ──────────────────────────────────────────────────────
 
+    /// <summary>True mientras este jugador está rociando con el extintor (lo usa ProceduralHead).</summary>
+    public bool RociandoExtintor { get; private set; }
+
     void ActualizarUsoExtintor()
     {
+        RociandoExtintor = false;
+
         // Sin extintor en la mano, el sonido del extintor de este jugador se apaga
         if (!isHoldingItem) { AudioManager.DetenerExtintor(this); return; }
 
@@ -368,6 +373,7 @@ public class PlayerInteraction : MonoBehaviour
         if (ext == null) { AudioManager.DetenerExtintor(this); return; }
 
         bool usando = _useAction != null && _useAction.IsPressed() && ext.TieneCarga();
+        RociandoExtintor = usando;
 
         if (usando) AudioManager.IniciarExtintor(this);
         else AudioManager.DetenerExtintor(this);
