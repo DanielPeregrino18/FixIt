@@ -51,6 +51,7 @@ public class ConfiguracionMenu : MonoBehaviour
         { "Correr",                                 "Shift izq.",      "Gatillo der. (RT)" },
         { "Agarrar / soltar / interactuar",         "E",               "A" },
         { "Usar (reparar, limpiar, extintor)",      "Q",               "X" },
+        { "Lanzar pieza / extintor",                "R",               "RB" },
         { "Pausa",                                  "P",               "Start" },
     };
 

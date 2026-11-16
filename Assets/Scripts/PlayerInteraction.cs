@@ -32,6 +32,28 @@ public class PlayerInteraction : MonoBehaviour
     /// <summary>True mientras toma café: no puede recoger, soltar ni usar mesas.</summary>
     [HideInInspector] public bool tomandoCafe = false;
 
+    [Header("Lanzar piezas (R / RB)")]
+    [Tooltip("Metros que recorre una pieza lanzada caminando o parado")]
+    public float distanciaLanzamiento = 8f;
+    [Tooltip("Metros que recorre una pieza lanzada mientras corre")]
+    public float distanciaLanzamientoCorriendo = 12f;
+    [Tooltip("El extintor pesa más: llega a esta fracción de la distancia de una pieza (0.7 = 70%)")]
+    [Range(0.1f, 1f)] public float factorDistanciaExtintor = 0.7f;
+    [Tooltip("Velocidad del vuelo (metros por segundo)")]
+    public float velocidadLanzamiento = 15f;
+    [Tooltip("Qué tan alto sube el arco de la pieza (metros)")]
+    public float alturaArcoLanzamiento = 2f;
+    [Tooltip("Cuántas veces puede rebotar en paredes (o en lo que no alcance a saltar)")]
+    public int rebotesMaximos = 2;
+    [Tooltip("Altura que salta la pieza: lo que sea más bajo que esto (mesas, bote, banda) lo pasa por arriba; lo más alto (paredes) la hace rebotar")]
+    public float alturaSondeoLanzamiento = 1.3f;
+    [Tooltip("Segundos de espera entre un lanzamiento y otro")]
+    public float esperaEntreLanzamientos = 0.35f;
+    [Tooltip("Distancia a la que un compañero atrapa una pieza en el aire")]
+    public float radioAtrapar = 0.9f;
+    [Tooltip("Grados: qué tan de frente tiene que estar el compañero para atraparla (90 = medio círculo)")]
+    public float anguloAtrapar = 75f;
+
     [Header("Físicas y Colisiones (Anti-Traspaso)")]
     public BoxCollider playerCollider;
 
@@ -54,6 +76,8 @@ public class PlayerInteraction : MonoBehaviour
     private bool _usingPlayerInput = false;
     private InputAction interactAction;
     private InputAction _useAction;
+    private InputAction _throwAction;
+    private float _proximoLanzamiento;
 
     // Para detectar cuándo cambia el objeto en mano y actualizar el Animator
     private GameObject _ultimoHeldItemParaAnim = null;
@@ -88,6 +112,7 @@ public class PlayerInteraction : MonoBehaviour
             var map = pi.actions.FindActionMap("Player");
             interactAction = map.FindAction("Interact");
             _useAction = map.FindAction("Secondary");
+            _throwAction = map.FindAction("Throw");
         }
         else
         {
@@ -99,6 +124,10 @@ public class PlayerInteraction : MonoBehaviour
             _useAction = new InputAction("Use", InputActionType.Button);
             _useAction.AddBinding("<Keyboard>/q");
             _useAction.AddBinding("<Gamepad>/buttonWest");
+
+            _throwAction = new InputAction("Throw", InputActionType.Button);
+            _throwAction.AddBinding("<Keyboard>/r");
+            _throwAction.AddBinding("<Gamepad>/rightShoulder");
         }
     }
 
@@ -108,6 +137,7 @@ public class PlayerInteraction : MonoBehaviour
         {
             interactAction?.Enable();
             _useAction?.Enable();
+            _throwAction?.Enable();
         }
     }
 
@@ -117,6 +147,7 @@ public class PlayerInteraction : MonoBehaviour
         {
             interactAction?.Disable();
             _useAction?.Disable();
+            _throwAction?.Disable();
         }
     }
 
@@ -144,6 +175,14 @@ public class PlayerInteraction : MonoBehaviour
                 ActualizarAnimacionSostenido();
                 return;
             }
+        }
+
+        // Lanzar la pieza que carga (R / RB)
+        if (_throwAction != null && _throwAction.WasPressedThisFrame() && PuedeLanzar())
+        {
+            LanzarPieza();
+            ActualizarAnimacionSostenido();
+            return;
         }
 
         if (interactAction != null && interactAction.WasPressedThisFrame())
@@ -377,6 +416,84 @@ public class PlayerInteraction : MonoBehaviour
 
         isHoldingItem = false;
         heldItem = null;
+    }
+
+    // ── Lanzar y atrapar piezas ───────────────────────────────────────────────
+
+    /// <summary>Se lanzan piezas (RAM, HDD, CPU) y el extintor; las laptops nunca.</summary>
+    bool PuedeLanzar()
+    {
+        if (!isHoldingItem || heldItem == null) return false;
+        if (heldItem.GetComponent<HardwarePiece>() == null && heldItem.GetComponent<Extinguisher>() == null) return false;
+        if (Time.time < _proximoLanzamiento) return false;
+
+        PlayerMovement pm = GetComponent<PlayerMovement>();
+        if (pm != null && pm.movimientoBloqueado) return false; // instalando, soplando, etc.
+        return true;
+    }
+
+    void LanzarPieza()
+    {
+        if (!PiezaLanzada.BuscarSuelo(transform.position, out float sueloY))
+        {
+            Debug.Log("PlayerInteraction: no encontré el piso bajo el jugador, no se lanza.");
+            return;
+        }
+
+        PlayerMovement pm = GetComponent<PlayerMovement>();
+        float distancia = (pm != null && pm.EstaSprintando) ? distanciaLanzamientoCorriendo : distanciaLanzamiento;
+        Extinguisher extintor = heldItem.GetComponent<Extinguisher>();
+        if (extintor != null) distancia *= factorDistanciaExtintor;
+
+        if (!PiezaLanzada.CalcularTrayectoria(transform.position, transform.forward, distancia,
+                                              rebotesMaximos, sueloY, alturaSondeoLanzamiento,
+                                              out var ruta))
+        {
+            Debug.Log($"PlayerInteraction: no hay suelo libre hacia allá ({PiezaLanzada.UltimoMotivoFallo}), la pieza se queda en la mano.");
+            return;
+        }
+
+        // Soltar de la mano (igual que al dejarla en el suelo, pero sin reactivar la física)
+        GameObject pieza = heldItem;
+
+        // Si iba rociando, la espuma se corta al lanzarlo (el sonido lo apaga ActualizarUsoExtintor)
+        if (extintor != null && extintor.espumaParticles != null)
+            extintor.espumaParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        pieza.transform.SetParent(null);
+        pieza.transform.localScale = Vector3.one;
+
+        isHoldingItem = false;
+        heldItem = null;
+        if (anim != null) anim.SetBool("isHolding", false);
+        AjustarCollider(false);
+
+        PiezaLanzada vuelo = pieza.GetComponent<PiezaLanzada>();
+        if (vuelo == null) vuelo = pieza.AddComponent<PiezaLanzada>();
+        vuelo.Iniciar(ruta, sueloY, velocidadLanzamiento, alturaArcoLanzamiento,
+                      this, radioAtrapar, anguloAtrapar);
+
+        _proximoLanzamiento = Time.time + esperaEntreLanzamientos;
+
+        ProceduralHead cabeza = GetComponent<ProceduralHead>();
+        if (cabeza != null) cabeza.ReaccionLanzar();
+    }
+
+    /// <summary>¿Puede este jugador atrapar una pieza en el aire ahora mismo?</summary>
+    public bool PuedeAtrapar()
+    {
+        if (!isActiveAndEnabled || isHoldingItem || tomandoCafe || mesaReparando != null) return false;
+        if (Time.timeScale == 0f) return false;
+
+        PlayerMovement pm = GetComponent<PlayerMovement>();
+        return pm == null || !pm.movimientoBloqueado;
+    }
+
+    /// <summary>Recibe en las manos una pieza que venía volando (la llama PiezaLanzada).</summary>
+    public void AtraparPieza(GameObject pieza)
+    {
+        if (pieza == null || !PuedeAtrapar()) return;
+        RecogerDelSuelo(pieza);
     }
 
     // ── Uso del extintor ──────────────────────────────────────────────────────

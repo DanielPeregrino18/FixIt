@@ -57,6 +57,8 @@ public class ProceduralHead : MonoBehaviour
 
     [Header("🔨 Acciones")]
     public bool animarAcciones = true;
+    [Tooltip("Fuerza del cabeceo al lanzar una pieza")]
+    public float impulsoLanzar = 220f;
     [Tooltip("Fuerza del cabeceo en cada martillazo")]
     [Range(0f, 800f)] public float impulsoMartillazo = 200f;
     [Tooltip("Grados del temblor de la cabeza mientras sopla con la lata de aire")]
@@ -532,6 +534,12 @@ public class ProceduralHead : MonoBehaviour
         if (extraSprint <= 0.01f) return 0f;
         // Llega al máximo al 70% del extra del sprint: la velocidad real casi nunca toca el tope exacto
         return Mathf.Clamp01((_factorMov - 1f) / (extraSprint * 0.7f));
+    }
+
+    /// <summary>Cabeceo hacia adelante al lanzar una pieza.</summary>
+    public void ReaccionLanzar()
+    {
+        Impulso(new Vector2(impulsoLanzar, Random.Range(-0.2f, 0.2f) * impulsoLanzar));
     }
 
     /// <summary>Empujón instantáneo a la cabeza (grados/segundo en pitch y roll). Para usar desde otros scripts.</summary>

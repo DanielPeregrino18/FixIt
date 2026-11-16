@@ -22,6 +22,9 @@ public class PlayerMovement : MonoBehaviour
     private Rigidbody rb;
     private Vector3 movement;
     private bool _sprintando = false;
+
+    /// <summary>True mientras corre (lo usa el lanzamiento de piezas para llegar más lejos).</summary>
+    public bool EstaSprintando => _sprintando;
     private bool _usingPlayerInput = false;
 
     private InputAction moveAction;
