@@ -186,8 +186,10 @@ MonoBehaviour:
   tiempoActualizacion: 120
   porcentajeAdvertencia: 0.7
   tiempoEnLlamasAntesDeCalcinar: 20
-  penalizacionAlRecoger: 3
+  penalizacionAlRecoger: 2
   tiempoRestanteTrasPenalizacion: 30
+  segundosExtintorHumo: 0.5
+  segundosExtintorFuego: 1
   humoParticles: {fileID: 1488411247887454895}
   fuegoParticles: {fileID: 5765812576591352523}
 --- !u!1001 &2268755453449946926

@@ -60,10 +60,19 @@ public class Laptop : MonoBehaviour, IExtinguishable
     public float tiempoEnLlamasAntesDeCalcinar = 20f;
 
     [Tooltip("Segundos que el jugador queda bloqueado al recoger en fase de advertencia")]
-    public float penalizacionAlRecoger = 3f;
+    public float penalizacionAlRecoger = 2f;
 
     [Tooltip("Segundos que le quedarán antes de incendiarse tras la penalización")]
     public float tiempoRestanteTrasPenalizacion = 30f;
+
+    // Funciona como los servidores: el rocío se ACUMULA aunque se suelte y se vuelva a rociar.
+    // (Los nombres "segundos…" son nuevos a propósito: Unity conserva en memoria el valor viejo de
+    // un campo ya existente aunque cambie el valor por defecto en el código.)
+    [Header("Incendios — Extintor")]
+    [Tooltip("Segundos de rocío (acumulados) para quitar el HUMO. Soplarle tarda Penalizacion Al Recoger")]
+    public float segundosExtintorHumo = 0.5f;
+    [Tooltip("Segundos de rocío (acumulados) para apagar el FUEGO")]
+    public float segundosExtintorFuego = 1f;
 
     [Header("Incendios — Efectos (se conectan después)")]
     public ParticleSystem humoParticles;
@@ -76,6 +85,11 @@ public class Laptop : MonoBehaviour, IExtinguishable
     private float _timerEnLlamas = 0f;
     private bool _calentando = false; // true = está en mesa/suelo, sumando tiempo
     private bool _bloqueadaTemp = false; // bloqueada por la animación de penalización
+
+    // ── Apagado con extintor (se acumula mientras se rocía) ──────────────────
+    private float _progresoExtintor = 0f;      // segundos de rocío acumulados en la fase actual
+    private int _frameUltimoRocio = -1;        // para contar una sola vez por frame aunque tenga varios colliders
+    private float _emisionHumoBase = -1f, _emisionFuegoBase = -1f;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -154,24 +168,68 @@ public class Laptop : MonoBehaviour, IExtinguishable
             StartCoroutine(PenalizarRecogidaEnAdvertencia(player));
     }
 
-    /// <summary>Llamar cuando el extintor apaga exitosamente el fuego.</summary>
+    /// <summary>
+    /// Apaga de inmediato el fuego o el humo (se llama al completar el rocío con el extintor).
+    /// (El humo también se puede quitar soplándole, al recogerla con la mano.)
+    /// </summary>
     public void ApagarConExtintor()
     {
-        if (_estadoFuego != EstadoFuego.EnLlamas) return;
+        if (_estadoFuego != EstadoFuego.EnLlamas && _estadoFuego != EstadoFuego.Advertencia) return;
 
+        bool eraFuego = _estadoFuego == EstadoFuego.EnLlamas;
         VolverANormal();
         _timerActual = 0f;
         _timerEnLlamas = 0f;
-        Debug.Log("Laptop: incendio apagado con el extintor.");
+        Debug.Log(eraFuego ? "Laptop: incendio apagado con el extintor." : "Laptop: humo apagado con el extintor.");
     }
 
     public bool EstaEnLlamas() => _estadoFuego == EstadoFuego.EnLlamas;
     public bool EstaEnAdvertencia() => _estadoFuego == EstadoFuego.Advertencia;
 
     // ── Implementación de IExtinguishable ───────────────────────────────────
-    // Las laptops se apagan al instante con un solo toque del chorro.
-    public bool EstaEnPeligro() => EstaEnLlamas();
-    public void RecibirChorroExtintor(float deltaTime) => ApagarConExtintor();
+    // Igual que los servidores: los segundos de rocío se acumulan (aunque se suelte y se vuelva
+    // a rociar) hasta llegar al tiempo necesario. Al cambiar de fase, el avance vuelve a cero.
+    public bool EstaEnPeligro() => EstaEnLlamas() || EstaEnAdvertencia();
+
+    public void RecibirChorroExtintor(float deltaTime)
+    {
+        if (!EstaEnPeligro()) return;
+
+        // Si la laptop tiene varios colliders, el extintor la "toca" varias veces por frame
+        if (_frameUltimoRocio == Time.frameCount) return;
+        _frameUltimoRocio = Time.frameCount;
+
+        _progresoExtintor += deltaTime;
+
+        float necesario = EstaEnLlamas() ? segundosExtintorFuego : segundosExtintorHumo;
+        if (_progresoExtintor >= necesario)
+            ApagarConExtintor();
+        else
+            MostrarAvanceExtintor(_progresoExtintor / Mathf.Max(0.01f, necesario));
+    }
+
+    /// <summary>El humo o el fuego se van achicando mientras se rocía (0 = completo … 1 = casi apagado).</summary>
+    void MostrarAvanceExtintor(float avance)
+    {
+        float factor = Mathf.Lerp(1f, 0.25f, Mathf.Clamp01(avance));
+        AjustarEmision(humoParticles, ref _emisionHumoBase, factor);
+        AjustarEmision(fuegoParticles, ref _emisionFuegoBase, factor);
+    }
+
+    static void AjustarEmision(ParticleSystem ps, ref float baseEmision, float factor)
+    {
+        if (ps == null) return;
+        ParticleSystem.EmissionModule em = ps.emission;
+        if (baseEmision < 0f) baseEmision = em.rateOverTimeMultiplier; // se guarda la original la primera vez
+        em.rateOverTimeMultiplier = baseEmision * factor;
+    }
+
+    /// <summary>Al cambiar de fase (humo → fuego, o apagada), el avance del extintor empieza de cero.</summary>
+    void ReiniciarAvanceExtintor()
+    {
+        _progresoExtintor = 0f;
+        MostrarAvanceExtintor(0f);
+    }
 
     // ═══════════════════════════════════════════════════════════════════════
     // LÓGICA INTERNA — FUEGO
@@ -245,6 +303,7 @@ public class Laptop : MonoBehaviour, IExtinguishable
     void EntrarEnAdvertencia()
     {
         _estadoFuego = EstadoFuego.Advertencia;
+        ReiniciarAvanceExtintor();
         if (humoParticles != null) humoParticles.Play();
         Debug.Log("Laptop: ⚠️ Advertencia — humo detectado.");
     }
@@ -253,6 +312,7 @@ public class Laptop : MonoBehaviour, IExtinguishable
     {
         _estadoFuego = EstadoFuego.EnLlamas;
         _timerEnLlamas = 0f;
+        ReiniciarAvanceExtintor(); // lo rociado en humo no cuenta para el fuego
         if (humoParticles != null) humoParticles.Stop();
         if (fuegoParticles != null) fuegoParticles.Play();
         // GestureController.MostrarGestoATodos(TipoGesto.Panico); // pendiente: integrar sistema de gestos
@@ -262,6 +322,7 @@ public class Laptop : MonoBehaviour, IExtinguishable
     void VolverANormal()
     {
         _estadoFuego = EstadoFuego.Normal;
+        ReiniciarAvanceExtintor();
         if (humoParticles != null) humoParticles.Stop();
         if (fuegoParticles != null) fuegoParticles.Stop();
     }
@@ -294,6 +355,7 @@ public class Laptop : MonoBehaviour, IExtinguishable
         Debug.Log("Laptop: 💨 El jugador le sopla para enfriarla...");
         yield return new WaitForSeconds(penalizacionAlRecoger);
 
+        AudioManager.DetenerSoplido(); // el clip dura más que el soplido
         if (pm != null) pm.movimientoBloqueado = false;
 
         VolverANormal();

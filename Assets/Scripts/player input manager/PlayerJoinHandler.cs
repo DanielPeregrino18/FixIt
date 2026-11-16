@@ -25,10 +25,11 @@ public class PlayerJoinHandler : MonoBehaviour
     private bool _lobbyEstabaVisible = false;
     private float _timerReentradaLobby = 0f;
     private bool _inputHabilitado = false;
-    private bool _confirmEstabaPresionado = true;
-    private bool _confirmListoParaUsar = false;
-    private float _tiempoSinPresionar = 0f;
-    private const float TIEMPO_REQUERIDO_SUELTA = 0.25f; // segundos reales — no depende del framerate del Editor
+
+    // Espera tras unirse antes de aceptar input. Es corta a propósito: la pulsación con la que
+    // el jugador se unió ya no cuenta porque Confirmar usa WasPressedThisFrame (solo pulsaciones
+    // nuevas), así que esto es solo un margen de seguridad.
+    private const float ESPERA_TRAS_UNIRSE = 0.12f;
 
     // Scripts de juego que deben estar desactivados en el lobby
     private PlayerMovement _playerMovement;
@@ -59,7 +60,11 @@ public class PlayerJoinHandler : MonoBehaviour
             _jugadorId = _playerInput.playerIndex + 1;
             _miSeccion = LobbyManager.Instance.GetSeccion(_jugadorId);
             _inputHabilitado = false;
-            _timerInicioInput = 0.3f;
+            _timerInicioInput = ESPERA_TRAS_UNIRSE;
+
+            // El jugador se une con el lobby ya visible: eso no es "reaparecer el lobby",
+            // así que no debe sumarse la espera de reentrada (antes se encadenaban ~0.85 s)
+            _lobbyEstabaVisible = GameFlowManager.Instance == null || GameFlowManager.Instance.EnLobby;
         }
         else
         {
@@ -97,7 +102,7 @@ public class PlayerJoinHandler : MonoBehaviour
         // se procese en el mismo frame que el unirse
         if (!_inputHabilitado)
         {
-            _timerInicioInput -= Time.deltaTime;
+            _timerInicioInput -= Time.unscaledDeltaTime;
             if (_timerInicioInput <= 0f)
             {
                 _inputHabilitado = true;
@@ -105,7 +110,7 @@ public class PlayerJoinHandler : MonoBehaviour
             return;
         }
 
-        _timerNavegacion -= Time.deltaTime;
+        _timerNavegacion -= Time.unscaledDeltaTime;
 
         // Navegación ← →
         if (_timerNavegacion <= 0f)
@@ -127,35 +132,14 @@ public class PlayerJoinHandler : MonoBehaviour
         }
 
         // Confirmar — A / E
-        // Detección de flanco manual, pero exigiendo que el botón se vea
-        // genuinamente suelto por varios frames seguidos antes de empezar a
-        // aceptar pulsaciones — un solo frame "suelto" puede ser solo el
-        // hueco entre 2 pulsos de auto-repetición del teclado, no una
-        // soltada real.
-        bool confirmPresionadoAhora = _confirmAction != null && _confirmAction.IsPressed();
-
-        if (!_confirmListoParaUsar)
+        // WasPressedThisFrame solo es true en el frame en que se presiona el botón: mantenerlo
+        // presionado no repite (el Input System no hace auto-repetición de teclas), y la pulsación
+        // con la que el jugador se unió ocurrió antes de que existiera, así que no cuenta.
+        if (_confirmAction != null && _confirmAction.WasPressedThisFrame())
         {
-            if (confirmPresionadoAhora)
-                _tiempoSinPresionar = 0f;
-            else
-                _tiempoSinPresionar += Time.deltaTime;
-
-            if (_tiempoSinPresionar >= TIEMPO_REQUERIDO_SUELTA)
-            {
-                _confirmListoParaUsar = true;
-                _confirmEstabaPresionado = false;
-            }
-        }
-        else
-        {
-            if (confirmPresionadoAhora && !_confirmEstabaPresionado)
-            {
-                // Si ya está listo, confirmar no hace nada (se cancela con Esc / B)
-                if (!_miSeccion.EstaListo())
-                    _miSeccion.Confirmar();
-            }
-            _confirmEstabaPresionado = confirmPresionadoAhora;
+            // Si ya está listo, confirmar no hace nada (se cancela con Esc / B)
+            if (!_miSeccion.EstaListo())
+                _miSeccion.Confirmar();
         }
 
         // Cancelar — B / Escape

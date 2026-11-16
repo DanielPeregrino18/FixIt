@@ -288,6 +288,8 @@ public class AudioManager : MonoBehaviour
 
     public static void IniciarBeberCafe() { if (Instance != null) Instance.Reproducir(Instance._fuenteCafe, Instance.sonidoBeberCafe); }
     public static void IniciarSoplido() { if (Instance != null) Instance.Reproducir(Instance._fuenteSoplido, Instance.sonidoSoplido); }
+    /// <summary>Corta el soplido (el clip dura 3 s y soplar puede durar menos).</summary>
+    public static void DetenerSoplido() { if (Instance != null && Instance._fuenteSoplido != null) Instance._fuenteSoplido.Stop(); }
 
     void Reproducir(AudioSource fuente, AudioClip clip)
     {
