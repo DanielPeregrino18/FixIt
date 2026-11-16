@@ -486,6 +486,8 @@ public class GameManager : MonoBehaviour
                   + Mathf.FloorToInt(_segundosSobrantes * puntosPorSegundoSobrante);
         Debug.Log($"GameManager: Score = {estrellaGanadas}★ × {puntosPorEstrella} + {_segundosSobrantes} s = {score}");
 
+        RegistrarPartida(estrellaGanadas, score, completada: true);
+
         MostrarResultadosTrasHistorieta(estrellaGanadas, score);
     }
 
@@ -530,7 +532,43 @@ public class GameManager : MonoBehaviour
         LimpiarLaptopsSinEntregar(contarComoPerdidas: false);
 
         Debug.Log($"GameManager: GAME OVER — {motivo}");
+
+        RegistrarPartida(0, 0, completada: false);
         MostrarResultados(0, true, motivo, 0, causa);
+    }
+
+    /// <summary>
+    /// Manda la partida al servidor (historial + estadísticas de la cuenta). Solo con sesión
+    /// iniciada; sin sesión el juego es solo local. Pasa por la cola persistente, así que si
+    /// no hay internet se envía cuando vuelva la conexión.
+    /// </summary>
+    void RegistrarPartida(int estrellas, int score, bool completada)
+    {
+        if (_nivelActualNumero <= 0) return; // nivel de prueba, sin número
+
+        string userId = PlayerDataManager.Instance != null ? PlayerDataManager.Instance.CurrentUserId : null;
+        if (string.IsNullOrEmpty(userId))
+        {
+            Debug.Log("GameManager: sin sesión iniciada, la partida no se envía al servidor (solo local).");
+            return;
+        }
+
+        SessionQueue.Agregar(new SessionCreateRequest
+        {
+            levelId = RemoteProgressStore.ObtenerLevelIdParaNivel(_nivelActualNumero),
+            worldId = RemoteProgressStore.ObtenerWorldIdParaNivel(_nivelActualNumero),
+            players = new System.Collections.Generic.List<string> { userId },
+            score = Mathf.Max(0, score),
+            starsEarned = Mathf.Max(0, estrellas),
+            ticketsCompleted = _laptopsEntregadas,
+            ticketsFailed = _laptopsPerdidas,
+            durationSeconds = Mathf.Max(0, Mathf.RoundToInt(_timerActual)),
+            equipment = "Laptop",
+            repairType = "Otros",
+            completed = completada
+        });
+
+        if (ProgressManager.Instance != null) ProgressManager.Instance.SincronizarAhora();
     }
 
     /// <summary>

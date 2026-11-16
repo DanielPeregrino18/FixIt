@@ -48,6 +48,9 @@ public class ProgressManager : MonoBehaviour
             PlayerDataManager.Instance.UsuarioCambiado -= AsignarUsuarioActual;
     }
 
+    /// <summary>Envía ya lo pendiente (progreso y partidas en cola), si hay sesión y conexión.</summary>
+    public void SincronizarAhora() => _remoto?.SincronizarAhora();
+
     void AsignarUsuarioActual()
     {
         _remoto?.CambiarUsuario(PlayerDataManager.Instance?.CurrentUserId);

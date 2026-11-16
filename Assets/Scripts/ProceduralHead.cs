@@ -41,8 +41,9 @@ public class ProceduralHead : MonoBehaviour
     [Range(0f, 30f)] public float balanceoCabeza = 4f;
     [Tooltip("Grados que la cabeza se inclina hacia adelante al caminar")]
     [Range(0f, 30f)] public float inclinacionCabeza = 3f;
-    [Tooltip("Grados que la cabeza se echa hacia ATRÁS al correr (Shift / RT)")]
-    [Range(0f, 30f)] public float cabezaAtrasCorrer = 10f;
+    [Tooltip("Grados que la cabeza se echa hacia ATRÁS al correr (Shift / RT). " +
+             "Ojo: el cuerpo se inclina hacia adelante al correr y se lleva la cabeza, así que se nota un poco menos.")]
+    [Range(0f, 50f)] public float cabezaAtrasCorrer = 32f;
     [Tooltip("Cuánto reacciona la cabeza a acelerar, frenar y girar (inercia)")]
     [Range(0f, 2f)] public float inerciaCabeza = 0.35f;
 
@@ -52,7 +53,7 @@ public class ProceduralHead : MonoBehaviour
     [Tooltip("Amortiguación: más bajo = rebota más (gelatina), más alto = se frena seco")]
     [Range(2f, 40f)] public float amortiguacion = 11f;
     [Tooltip("Límite de grados que puede girar la cabeza en cualquier dirección")]
-    [Range(5f, 60f)] public float anguloMaximo = 25f;
+    [Range(5f, 60f)] public float anguloMaximo = 40f;
 
     [Header("🔨 Acciones")]
     public bool animarAcciones = true;
@@ -529,7 +530,8 @@ public class ProceduralHead : MonoBehaviour
         if (_movimiento == null || _movimiento.speed <= 0.1f) return 0f;
         float extraSprint = _movimiento.sprintSpeed / _movimiento.speed - 1f; // p. ej. 7/5 - 1 = 0.4
         if (extraSprint <= 0.01f) return 0f;
-        return Mathf.Clamp01((_factorMov - 1f) / extraSprint);
+        // Llega al máximo al 70% del extra del sprint: la velocidad real casi nunca toca el tope exacto
+        return Mathf.Clamp01((_factorMov - 1f) / (extraSprint * 0.7f));
     }
 
     /// <summary>Empujón instantáneo a la cabeza (grados/segundo en pitch y roll). Para usar desde otros scripts.</summary>

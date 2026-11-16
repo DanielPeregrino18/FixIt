@@ -34,6 +34,12 @@ public class RemoteProgressStore : IProgressStore
     /// Cambia la cuenta con la que se sincroniza (null = sin sesión, solo local).
     /// Al iniciar sesión se sincroniza de inmediato: el progreso local se suma a la cuenta.
     /// </summary>
+    /// <summary>Pide una sincronización inmediata (p. ej. al terminar una partida) sin esperar al siguiente ciclo.</summary>
+    public void SincronizarAhora()
+    {
+        _sincronizarYa = true;
+    }
+
     public void CambiarUsuario(string userId)
     {
         string nuevo = string.IsNullOrEmpty(userId) ? null : userId;
@@ -189,7 +195,7 @@ public class RemoteProgressStore : IProgressStore
     /// Calcula automáticamente el mundo basado en el nivel.
     /// Nivel 1-5 = world_1, Nivel 6-10 = world_2, Nivel 11-15 = world_3, etc.
     /// </summary>
-    private string ObtenerWorldIdParaNivel(int nivel)
+    public static string ObtenerWorldIdParaNivel(int nivel)
     {
         int mundoNumero = ((nivel - 1) / 5) + 1;
         return $"world_{mundoNumero}";
@@ -198,7 +204,7 @@ public class RemoteProgressStore : IProgressStore
     /// <summary>
     /// Obtiene el ID del nivel (nivel_1, nivel_2, etc.)
     /// </summary>
-    private string ObtenerLevelIdParaNivel(int nivel)
+    public static string ObtenerLevelIdParaNivel(int nivel)
     {
         return $"nivel_{nivel}";
     }
