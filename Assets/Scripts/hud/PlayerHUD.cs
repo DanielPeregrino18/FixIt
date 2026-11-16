@@ -39,8 +39,8 @@ public class PlayerHUD : MonoBehaviour
     public Image barraExtintorRelleno;
 
     // ── Estado interno ─────────────────────────────────────────────────────
-    private GameObject     _ultimoItemEnMano = null;
-    private PlayerMovement _playerMovement   = null;
+    private GameObject _ultimoItemEnMano = null;
+    private PlayerMovement _playerMovement = null;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -68,7 +68,7 @@ public class PlayerHUD : MonoBehaviour
         // Activarse al vincularse con un jugador
         gameObject.SetActive(true);
 
-        jugador         = nuevoJugador;
+        jugador = nuevoJugador;
         _playerMovement = nuevoJugador != null
             ? nuevoJugador.GetComponent<PlayerMovement>()
             : null;
@@ -85,7 +85,9 @@ public class PlayerHUD : MonoBehaviour
     {
         if (jugador == null) return;
 
-        if (jugador.heldItem != _ultimoItemEnMano)
+        // ReferenceEquals a propósito: si la laptop que sostenía se destruyó, Unity la compara
+        // como "null" y el panel nunca se enteraba de que las manos quedaron vacías.
+        if (!System.Object.ReferenceEquals(jugador.heldItem, _ultimoItemEnMano))
         {
             _ultimoItemEnMano = jugador.heldItem;
             RefrescarVista();
@@ -162,7 +164,7 @@ public class PlayerHUD : MonoBehaviour
             // Si el Horizontal Layout Group del contenedor controla el tamaño de
             // los hijos, esto asegura que respete el ancho de columna calculado.
             LayoutElement le = iconObj.AddComponent<LayoutElement>();
-            le.preferredWidth  = anchoColumna;
+            le.preferredWidth = anchoColumna;
             le.preferredHeight = iconSize;
         }
     }
@@ -178,13 +180,13 @@ public class PlayerHUD : MonoBehaviour
     {
         switch (problema)
         {
-            case Laptop.Problema.Limpieza:           return icono_limpieza;
-            case Laptop.Problema.Reparacion:         return icono_reparacion;
-            case Laptop.Problema.Actualizacion:      return icono_actualizacion;
-            case Laptop.Problema.NecesitaRAM:        return icono_ram;
-            case Laptop.Problema.NecesitaHDD:        return icono_hdd;
+            case Laptop.Problema.Limpieza: return icono_limpieza;
+            case Laptop.Problema.Reparacion: return icono_reparacion;
+            case Laptop.Problema.Actualizacion: return icono_actualizacion;
+            case Laptop.Problema.NecesitaRAM: return icono_ram;
+            case Laptop.Problema.NecesitaHDD: return icono_hdd;
             case Laptop.Problema.NecesitaProcesador: return icono_procesador;
-            default:                                 return null;
+            default: return null;
         }
     }
 }

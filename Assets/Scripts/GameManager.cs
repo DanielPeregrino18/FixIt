@@ -11,8 +11,6 @@ using TMPro;
 /// </summary>
 public class GameManager : MonoBehaviour
 {
-    // Configuracion de variables para el login
-    private string currentUserId;
     public static GameManager Instance { get; private set; }
 
     // ── Configuración del nivel ───────────────────────────────────────────────
@@ -107,19 +105,28 @@ public class GameManager : MonoBehaviour
 
     [Header("UI - Mensaje aleatorio en Resultados")]
     public TextMeshProUGUI textoMensaje;
-    [Tooltip("Se elige uno al azar cuando el nivel termina en Game Over")]
-    public string[] mensajesGameOver = {
+    [Tooltip("Game Over porque se perdieron demasiadas laptops (también se usa si la otra lista está vacía)")]
+    [UnityEngine.Serialization.FormerlySerializedAs("mensajesGameOver")]
+    public string[] mensajesGameOverLaptops = {
         "Bermúdez no puede enterarse de esto.",
         "González va a necesitar una buena excusa.",
         "El área de TI vivió días mejores."
     };
-    [Tooltip("Se elige uno al azar con 1 estrella")]
-    public string[] mensajes1Estrella = {
-        "Sobreviviste... apenas.",
-        "Un día más en la trinchera de TI."
+    [Tooltip("Game Over porque explotó un servidor (si está vacía se usa la de laptops)")]
+    public string[] mensajesGameOverServidor = {
+        "El servidor se fue en llamas y Bermúdez ya lo sabe."
     };
-    [Tooltip("Se elige uno al azar con 2 estrellas")]
-    public string[] mensajes2Estrellas = {
+    [Tooltip("Victoria de 1 o 2 estrellas en un nivel donde un servidor llegó a incendiarse y lo apagaron. Se mezclan con la lista normal.")]
+    public string[] mensajesIncendioServidor = {
+        "Apagaste el incendio del servidor. Que nadie lo mencione en la junta."
+    };
+    [Tooltip("Probabilidad (0 a 1) de que salga uno de la lista de incendio cuando aplica. 1 = siempre, 0 = nunca")]
+    [Range(0f, 1f)] public float probabilidadMensajeIncendio = 0.6f;
+    [Tooltip("Se elige uno al azar con 1 o con 2 estrellas (comparten la misma lista)")]
+    [UnityEngine.Serialization.FormerlySerializedAs("mensajes2Estrellas")]
+    public string[] mensajes1y2Estrellas = {
+        "Sobreviviste... apenas.",
+        "Un día más en la trinchera de TI.",
         "Nada mal para ser becario.",
         "El área empieza a respirar."
     };
@@ -167,9 +174,6 @@ public class GameManager : MonoBehaviour
     /// <summary>Score de la última partida (0 si fue Game Over). Para enviarlo al backend.</summary>
     public int ScoreFinal { get; private set; }
 
-    /// <summary>Estrellas ganadas en la última partida (0 si fue Game Over). Para enviarlo al backend.</summary>
-    public int EstrellasFinales { get; private set; }
-
     private int _segundosSobrantes = 0;
     private int _scoreMostrado = 0;
     private Vector3 _escalaBaseScore = Vector3.one;
@@ -178,6 +182,12 @@ public class GameManager : MonoBehaviour
     [Tooltip("Segundos de pausa antes de mostrar resultados cuando ya no queda nada por resolver")]
     public float retrasoFinAnticipado = 1f;
     private int _piezasDesperdiciadas = 0;
+
+    /// <summary>Por qué terminó un Game Over (para elegir el chiste de los resultados).</summary>
+    public enum CausaDerrota { LaptopsPerdidas, Servidor }
+
+    // true si algún servidor llegó a incendiarse durante este nivel
+    private bool _huboIncendioServidor = false;
 
     // Horario: 8 AM a 4 PM = 8 horas
     private const int HORA_INICIO = 8;
@@ -275,7 +285,7 @@ public class GameManager : MonoBehaviour
     /// Arranca el reloj y los contadores del nivel. Llamar justo cuando el
     /// nivel realmente empieza (WaveManager.IniciarNivel), no al cargar la escena.
     /// </summary>
-    public void IniciarNivel(int numeroNivel = 0)
+    public void IniciarNivel(int numeroNivel = 0, bool esReintento = false)
     {
         _timerActual = 0f;
         _hordaActivada = false;
@@ -287,12 +297,10 @@ public class GameManager : MonoBehaviour
         ScoreFinal = 0;
         if (_corrutinaFinAnticipado != null) { StopCoroutine(_corrutinaFinAnticipado); _corrutinaFinAnticipado = null; }
         _piezasDesperdiciadas = 0;
+        _huboIncendioServidor = false;
         _nivelActivo = true;
         _nivelActualNumero = numeroNivel;
         ActualizarDia();
-
-        // La canción del nivel arranca (o se reinicia) desde el principio
-        if (AudioManager.Instance != null) AudioManager.Instance.IniciarMusicaNivel(duracionNivel);
 
         Time.timeScale = 1f; // por si venía en pausa de un nivel anterior
         if (pantallaResultados != null) pantallaResultados.SetActive(false);
@@ -306,7 +314,23 @@ public class GameManager : MonoBehaviour
         foreach (PlayerMovement m in movs)
             m.movimientoBloqueado = false;
 
+        // Primero la historieta de inicio (si hay y no es un reintento/reinicio),
+        // y al cerrarla el tutorial. Todo queda congelado hasta entonces.
+        bool hayComic = !esReintento && ComicManager.Instance != null &&
+                        ComicManager.Instance.Mostrar(numeroNivel, ComicManager.Momento.Inicio,
+                                                      () => ArrancarTrasIntro(numeroNivel));
+        if (!hayComic) ArrancarTrasIntro(numeroNivel);
+
         Debug.Log("GameManager: Nivel iniciado, reloj en 8:00 AM.");
+    }
+
+    /// <summary>Tutorial del nivel (si lo hay) y música. Se llama tras la historieta de inicio, o directo si no hay.</summary>
+    void ArrancarTrasIntro(int numeroNivel)
+    {
+        // El tutorial congela el juego hasta que un jugador lo cierre con A.
+        // La canción arranca al cerrarlo; si no hay tutorial arranca ya.
+        bool hayTutorial = TutorialManager.Instance != null && TutorialManager.Instance.MostrarParaNivel(numeroNivel);
+        if (!hayTutorial) ArrancarMusicaNivel();
     }
 
     /// <summary>
@@ -400,7 +424,14 @@ public class GameManager : MonoBehaviour
     public void ServidorExplotado()
     {
         if (!_nivelActivo) return;
-        GameOver("¡Un servidor explotó!");
+        GameOver("¡Un servidor explotó!", CausaDerrota.Servidor);
+    }
+
+    /// <summary>Llamar cuando un servidor entra en llamas (para el chiste especial si luego lo apagan).</summary>
+    public void RegistrarIncendioServidor()
+    {
+        if (!_nivelActivo) return;
+        _huboIncendioServidor = true;
     }
 
     // ── Lógica interna ────────────────────────────────────────────────────────
@@ -446,7 +477,6 @@ public class GameManager : MonoBehaviour
         }
 
         int estrellaGanadas = CalcularEstrellas();
-        EstrellasFinales = estrellaGanadas;
 
         // NUEVO: guardar el progreso
         if (ProgressManager.Instance != null && _nivelActualNumero > 0)
@@ -454,13 +484,42 @@ public class GameManager : MonoBehaviour
 
         int score = estrellaGanadas * puntosPorEstrella
                   + Mathf.FloorToInt(_segundosSobrantes * puntosPorSegundoSobrante);
-        ScoreFinal = score;
         Debug.Log($"GameManager: Score = {estrellaGanadas}★ × {puntosPorEstrella} + {_segundosSobrantes} s = {score}");
 
-        MostrarResultados(estrellaGanadas, false, "", score);
+        MostrarResultadosTrasHistorieta(estrellaGanadas, score);
     }
 
-    void GameOver(string motivo)
+    /// <summary>
+    /// Victoria: si el nivel tiene historieta de final, se oscurece la pantalla, se muestra
+    /// la historieta y luego aparecen los resultados (con su propio fundido desde negro).
+    /// Sin historieta, los resultados salen directo como siempre.
+    /// </summary>
+    void MostrarResultadosTrasHistorieta(int estrellaGanadas, int score)
+    {
+        int nivel = _nivelActualNumero;
+        bool hayHistorieta = nivel > 0 && ComicManager.Instance != null &&
+                             ComicManager.Instance.Existe(nivel, ComicManager.Momento.Final);
+
+        if (!hayHistorieta || FundidoPantalla.Instance == null)
+        {
+            MostrarResultados(estrellaGanadas, false, "", score);
+            return;
+        }
+
+        System.Action mostrarResultados = () =>
+        {
+            MostrarResultados(estrellaGanadas, false, "", score);
+            if (FundidoPantalla.Instance != null) FundidoPantalla.Instance.Aclarar();
+        };
+
+        FundidoPantalla.Instance.Oscurecer(0f, () =>
+        {
+            bool mostrada = ComicManager.Instance.Mostrar(nivel, ComicManager.Momento.Final, mostrarResultados);
+            if (!mostrada) mostrarResultados(); // por si falta configurar el panel: nunca dejar la pantalla en negro
+        });
+    }
+
+    void GameOver(string motivo, CausaDerrota causa = CausaDerrota.LaptopsPerdidas)
     {
         _nivelActivo = false;
         if (AudioManager.Instance != null) AudioManager.Instance.DetenerMusicaConFundido();
@@ -470,14 +529,8 @@ public class GameManager : MonoBehaviour
         // Limpieza de objetos por prolijidad (no afecta el resultado, ya es 0 estrellas)
         LimpiarLaptopsSinEntregar(contarComoPerdidas: false);
 
-        EstrellasFinales = 0;
-        ScoreFinal = 0;
-
-        if (ProgressManager.Instance != null && _nivelActualNumero > 0)
-            ProgressManager.Instance.GuardarResultado(_nivelActualNumero, 0);
-
         Debug.Log($"GameManager: GAME OVER — {motivo}");
-        MostrarResultados(0, true, motivo);
+        MostrarResultados(0, true, motivo, 0, causa);
     }
 
     /// <summary>
@@ -541,7 +594,8 @@ public class GameManager : MonoBehaviour
         return 1;
     }
 
-    void MostrarResultados(int estrellasGanadas, bool esGameOver, string motivo = "", int score = 0)
+    void MostrarResultados(int estrellasGanadas, bool esGameOver, string motivo = "", int score = 0,
+                           CausaDerrota causa = CausaDerrota.LaptopsPerdidas)
     {
         // "Siguiente nivel" solo si ganaste y no es el último nivel
         bool hayNivelSiguiente = !esGameOver && _nivelActualNumero > 0 &&
@@ -591,10 +645,29 @@ public class GameManager : MonoBehaviour
         // Mensaje aleatorio según el resultado
         if (textoMensaje != null)
         {
-            string[] pool = esGameOver ? mensajesGameOver
-                          : estrellasGanadas >= 3 ? mensajes3Estrellas
-                          : estrellasGanadas == 2 ? mensajes2Estrellas
-                          : mensajes1Estrella;
+            string[] pool;
+
+            if (esGameOver)
+            {
+                // Chiste según la causa; si esa lista está vacía, se usa la otra
+                bool servidor = causa == CausaDerrota.Servidor;
+                pool = servidor ? mensajesGameOverServidor : mensajesGameOverLaptops;
+                if (pool == null || pool.Length == 0)
+                    pool = servidor ? mensajesGameOverLaptops : mensajesGameOverServidor;
+            }
+            else if (estrellasGanadas >= 3)
+            {
+                pool = mensajes3Estrellas;
+            }
+            else
+            {
+                pool = mensajes1y2Estrellas;
+
+                // Si un servidor se incendió y lo apagaron, a veces sale el chiste especial
+                if (_huboIncendioServidor && mensajesIncendioServidor != null &&
+                    mensajesIncendioServidor.Length > 0 && Random.value < probabilidadMensajeIncendio)
+                    pool = mensajesIncendioServidor;
+            }
 
             textoMensaje.text = (pool != null && pool.Length > 0)
                 ? pool[Random.Range(0, pool.Length)]
@@ -915,6 +988,12 @@ public class GameManager : MonoBehaviour
     /// <summary>True mientras un nivel está en curso (jugándose o en pausa). False en menú/lobby/resultados.</summary>
     public bool EstaJugando => _nivelActivo;
 
+    /// <summary>La canción del nivel arranca (o se reinicia) desde el principio.</summary>
+    public void ArrancarMusicaNivel()
+    {
+        if (AudioManager.Instance != null) AudioManager.Instance.IniciarMusicaNivel(duracionNivel);
+    }
+
     /// <summary>Vuelve a cargar el mismo nivel que se acaba de jugar. Pública para el botón de Reintentar y la Pausa.</summary>
     public void Reintentar()
     {
@@ -927,7 +1006,7 @@ public class GameManager : MonoBehaviour
 
         NivelData datos = NivelLoader.Instance.CargarNivel(nivel);
         if (datos != null)
-            WaveManager.Instance.IniciarNivel(datos);
+            WaveManager.Instance.IniciarNivel(datos, esReintento: true); // sin historieta de inicio
     }
 
     /// <summary>Botón "Siguiente nivel": inicia directamente el nivel que sigue, sin pasar por el calendario.</summary>
@@ -1078,11 +1157,4 @@ public class GameManager : MonoBehaviour
 
         if (objetivo != null) objetivo.localScale = Vector3.one;
     }
-
-
-    // ── NUEVOS ACCESORES PARA LA RED ─────────────────────────────────────────
-    public int NivelActualNumero => _nivelActualNumero;
-    public int LaptopsEntregadas => _laptopsEntregadas;
-    public int LaptopsPerdidas => _laptopsPerdidas;
-
 }

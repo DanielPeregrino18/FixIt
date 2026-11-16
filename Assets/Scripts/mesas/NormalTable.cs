@@ -224,6 +224,8 @@ public class NormalTable : InteractableTable
         // El jugador se queda en su sitio mientras instala
         BloquearMovimiento(player, true);
 
+        AudioManager.IniciarInstalacion();
+
         if (barraUI != null) barraUI.SetActive(true);
         ActualizarBarra(0f);
 
@@ -242,6 +244,7 @@ public class NormalTable : InteractableTable
         SetRenderersVisibles(_piezaInstalando, true);
         OcultarManos(_jugadorInstalando, false);
         BloquearMovimiento(_jugadorInstalando, false);
+        AudioManager.DetenerInstalacion(); // soltó el botón: el sonido se corta
         if (humoInstalacion != null) humoInstalacion.Stop();
 
         _estadoInstalacion = EstadoInstalacion.Inactivo;

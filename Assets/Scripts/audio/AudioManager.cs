@@ -42,6 +42,15 @@ public class AudioManager : MonoBehaviour
     [Tooltip("Segundos que tarda en bajar la música de menú al entrar a un nivel")]
     public float duracionFundidoMenu = 0.8f;
 
+    [Header("Música de historietas y tutoriales")]
+    [Tooltip("Suena en loop durante las historietas y los tutoriales (sin cortarse entre una y otro)")]
+    public AudioClip musicaHistorieta;
+    [Range(0f, 1f)] public float volumenHistorieta = 0.6f;
+    [Tooltip("Segundos de mezcla entre el final de la canción y su inicio al repetirse. 0 = loop normal")]
+    public float duracionCruceHistorieta = 3f;
+    [Tooltip("Segundos que tarda en bajar al terminar el tutorial o la historieta")]
+    public float duracionFundidoHistorieta = 0.8f;
+
     [Header("Sonidos de la pantalla de resultados")]
     public AudioClip sonidoVictoria;
     public AudioClip sonidoDerrota;
@@ -78,11 +87,62 @@ public class AudioManager : MonoBehaviour
     [Tooltip("Suena una vez al dejar de rociar")]
     public AudioClip sonidoExtintorFin;
 
+    [Header("Servidor")]
+    [Tooltip("Mientras el servidor está en llamas (se repite en loop). En humo no suena")]
+    public AudioClip sonidoServidorLlamas;
+    [Tooltip("Una vez, cuando el servidor explota")]
+    public AudioClip sonidoServidorExplosion;
+    [Tooltip("Volumen propio del loop de llamas (se multiplica por Volumen Efectos)")]
+    [Range(0f, 1f)] public float volumenLlamasServidor = 0.5f;
+    [Tooltip("Volumen propio de la explosión (se multiplica por Volumen Efectos)")]
+    [Range(0f, 1f)] public float volumenExplosionServidor = 1f;
+
+    [Header("Acciones del personaje")]
+    [Tooltip("Mientras el personaje bebe café (3 s)")]
+    public AudioClip sonidoBeberCafe;
+    [Tooltip("Mientras el personaje sopla una laptop con humo (3 s)")]
+    public AudioClip sonidoSoplido;
+
+    [Header("Laptop")]
+    [Tooltip("Una vez, cuando una laptop en llamas explota y se pierde")]
+    public AudioClip sonidoExplosionLaptop;
+    [Tooltip("Volumen propio de este sonido (se multiplica por Volumen Efectos)")]
+    [Range(0f, 1f)] public float volumenExplosionLaptop = 0.7f;
+
+    [Header("Entrega de laptops")]
+    [Tooltip("Laptop entregada completa en la zona de entrega")]
+    public AudioClip sonidoEntregaCorrecta;
+    [Tooltip("Laptop entregada incompleta, o laptop que cae al bote de basura")]
+    public AudioClip sonidoEntregaIncorrecta;
+    [Range(0f, 1f)] public float volumenEntregaCorrecta = 0.8f;
+    [Range(0f, 1f)] public float volumenEntregaIncorrecta = 0.8f;
+
+    [Header("Expendedora de piezas")]
+    [Tooltip("Una vez, cuando el jugador saca una pieza")]
+    public AudioClip sonidoExpendedora;
+    [Tooltip("Volumen propio de este sonido (se multiplica por Volumen Efectos)")]
+    [Range(0f, 1f)] public float volumenExpendedora = 0.7f;
+
+    [Header("Instalar piezas (RAM, HDD y CPU)")]
+    [Tooltip("Suena mientras el jugador mantiene pulsado el botón de instalar. Se corta si lo suelta")]
+    public AudioClip sonidoInstalacion;
+    [Tooltip("Volumen propio de este sonido (se multiplica por Volumen Efectos). Bájalo si suena fuerte")]
+    [Range(0f, 1f)] public float volumenInstalacion = 0.5f;
+
     [Header("Volumen de efectos")]
     [Range(0f, 1f)] public float volumenEfectos = 1f;
 
     private AudioSource _fuenteAire;
     private AudioSource _fuenteAireExtremos; // inicio y final del aire
+
+    // Acciones del personaje de duración fija (se pueden pausar y cortar)
+    private AudioSource _fuenteCafe;
+    private AudioSource _fuenteSoplido;
+    private AudioSource _fuenteInstalacion;
+
+    // Servidor en llamas: puede haber varios ardiendo a la vez; el loop es uno solo
+    private AudioSource _fuenteLlamas;
+    private readonly System.Collections.Generic.HashSet<object> _servidoresEnLlamas = new System.Collections.Generic.HashSet<object>();
 
     // Extintor: varios jugadores pueden rociar a la vez; el sonido es uno solo
     private AudioSource _fuenteExtintor;
@@ -107,6 +167,13 @@ public class AudioManager : MonoBehaviour
     private Coroutine _fundidoMenu;
     private bool _menuActivo = false;
 
+    // Música de historietas/tutoriales: misma técnica de mezcla que la de menú
+    private AudioSource _histA;
+    private AudioSource _histB;
+    private Coroutine _bucleHist;
+    private Coroutine _fundidoHist;
+    private bool _histActiva = false;
+
     // ─────────────────────────────────────────────────────────────────────────
 
     void Awake()
@@ -122,6 +189,8 @@ public class AudioManager : MonoBehaviour
 
         _menuA = CrearFuenteMenu();
         _menuB = CrearFuenteMenu();
+        _histA = CrearFuenteMenu();
+        _histB = CrearFuenteMenu();
         _fuenteSfx = CrearFuenteMenu(); // fuente aparte para efectos: no la cortan los fundidos de la música
         _fuenteUI = CrearFuenteMenu(); // y otra para los sonidos de menús, que nunca se cortan entre sí con otros
         _fuenteEfectos = CrearFuenteMenu(); // efectos del juego (golpes, etc.)
@@ -133,6 +202,82 @@ public class AudioManager : MonoBehaviour
         _fuenteExtintor = CrearFuenteMenu();
         _fuenteExtintor.loop = true;
         _fuenteExtintorExtremos = CrearFuenteMenu();
+
+        _fuenteLlamas = CrearFuenteMenu();
+        _fuenteLlamas.loop = true;
+
+        _fuenteCafe = CrearFuenteMenu();
+        _fuenteSoplido = CrearFuenteMenu();
+        _fuenteInstalacion = CrearFuenteMenu();
+    }
+
+    // ── Instalar piezas ───────────────────────────────────────────────────────
+
+    public static void IniciarInstalacion()
+    {
+        if (Instance == null || Instance.sonidoInstalacion == null || Instance._fuenteInstalacion == null) return;
+        Instance._fuenteInstalacion.Stop();
+        Instance._fuenteInstalacion.clip = Instance.sonidoInstalacion;
+        Instance._fuenteInstalacion.volume = Instance.volumenEfectos * Instance.volumenInstalacion;
+        Instance._fuenteInstalacion.Play();
+    }
+
+    /// <summary>Corta el sonido (se llama al soltar el botón y cancelar la instalación).</summary>
+    public static void DetenerInstalacion()
+    {
+        if (Instance != null && Instance._fuenteInstalacion != null) Instance._fuenteInstalacion.Stop();
+    }
+
+    // ── Acciones del personaje: beber café y soplar una laptop ────────────────
+
+    public static void IniciarBeberCafe() { if (Instance != null) Instance.Reproducir(Instance._fuenteCafe, Instance.sonidoBeberCafe); }
+    public static void IniciarSoplido() { if (Instance != null) Instance.Reproducir(Instance._fuenteSoplido, Instance.sonidoSoplido); }
+
+    void Reproducir(AudioSource fuente, AudioClip clip)
+    {
+        if (fuente == null || clip == null) return;
+        fuente.Stop();
+        fuente.clip = clip;
+        fuente.volume = volumenEfectos;
+        fuente.Play();
+    }
+
+    void ReiniciarAcciones()
+    {
+        if (_fuenteCafe != null) _fuenteCafe.Stop();
+        if (_fuenteSoplido != null) _fuenteSoplido.Stop();
+        if (_fuenteInstalacion != null) _fuenteInstalacion.Stop();
+    }
+
+    // ── Servidor: llamas (loop) y explosión ───────────────────────────────────
+
+    public static void IniciarLlamasServidor(object servidor) { if (Instance != null) Instance.LlamasServidor(servidor, true); }
+    public static void DetenerLlamasServidor(object servidor) { if (Instance != null) Instance.LlamasServidor(servidor, false); }
+    public static void ExplosionServidor() { if (Instance != null) Instance.ReproducirEfecto(Instance.sonidoServidorExplosion, Instance.volumenExplosionServidor); }
+
+    void LlamasServidor(object servidor, bool encender)
+    {
+        if (encender)
+        {
+            if (!_servidoresEnLlamas.Add(servidor)) return;
+            if (_servidoresEnLlamas.Count != 1 || sonidoServidorLlamas == null) return;
+
+            _fuenteLlamas.Stop();
+            _fuenteLlamas.clip = sonidoServidorLlamas;
+            _fuenteLlamas.volume = volumenEfectos * volumenLlamasServidor;
+            _fuenteLlamas.Play();
+        }
+        else
+        {
+            if (!_servidoresEnLlamas.Remove(servidor)) return;
+            if (_servidoresEnLlamas.Count == 0) _fuenteLlamas.Stop();
+        }
+    }
+
+    void ReiniciarServidor()
+    {
+        _servidoresEnLlamas.Clear();
+        if (_fuenteLlamas != null) _fuenteLlamas.Stop();
     }
 
     // ── Extintor (inicio → loop → fin) ────────────────────────────────────────
@@ -248,16 +393,25 @@ public class AudioManager : MonoBehaviour
         if (_fuenteAire != null) _fuenteAire.Stop();
         if (_fuenteAireExtremos != null) _fuenteAireExtremos.Stop();
         ReiniciarExtintor(); // los efectos de uso continuo se apagan juntos
+        ReiniciarServidor();
+        ReiniciarAcciones();
     }
 
     // ── Efectos del juego ─────────────────────────────────────────────────────
 
+    public static void EntregaCorrecta() { if (Instance != null) Instance.ReproducirEfecto(Instance.sonidoEntregaCorrecta, Instance.volumenEntregaCorrecta); }
+    public static void EntregaIncorrecta() { if (Instance != null) Instance.ReproducirEfecto(Instance.sonidoEntregaIncorrecta, Instance.volumenEntregaIncorrecta); }
+
+    public static void ExplosionLaptop() { if (Instance != null) Instance.ReproducirEfecto(Instance.sonidoExplosionLaptop, Instance.volumenExplosionLaptop); }
+
+    public static void Expendedora() { if (Instance != null) Instance.ReproducirEfecto(Instance.sonidoExpendedora, Instance.volumenExpendedora); }
+
     public static void Golpe() { if (Instance != null) Instance.ReproducirEfecto(Instance.sonidoGolpe); }
 
-    void ReproducirEfecto(AudioClip clip)
+    void ReproducirEfecto(AudioClip clip, float escala = 1f)
     {
         if (clip == null || _fuenteEfectos == null) return;
-        _fuenteEfectos.PlayOneShot(clip, volumenEfectos); // PlayOneShot permite que varios golpes seguidos se solapen
+        _fuenteEfectos.PlayOneShot(clip, volumenEfectos * escala); // PlayOneShot permite que varios golpes seguidos se solapen
     }
 
     // ── Sonidos de interfaz ───────────────────────────────────────────────────
@@ -422,12 +576,121 @@ public class AudioManager : MonoBehaviour
         if (_menuB != null) { _menuB.Stop(); _menuB.volume = volumenMenu; }
     }
 
+    // ── Música de historietas y tutoriales ────────────────────────────────────
+
+    /// <summary>
+    /// Arranca la música de historietas en loop. Si ya suena no la reinicia, así que pasar
+    /// de la historieta al tutorial no la corta.
+    /// </summary>
+    public void IniciarMusicaHistorieta()
+    {
+        if (musicaHistorieta == null) return;
+
+        // Que no se encime con la música de menú ni con la del nivel anterior (reinicios)
+        DetenerMusicaMenu(true);
+        DetenerMusicaConFundido();
+
+        if (_fundidoHist != null) { StopCoroutine(_fundidoHist); _fundidoHist = null; }
+        else if (_histActiva) return;
+
+        PararFuentesHist();
+        _histActiva = true;
+        _bucleHist = StartCoroutine(BucleHistorieta());
+    }
+
+    /// <summary>Baja el volumen y detiene la música de historietas/tutoriales.</summary>
+    public void DetenerMusicaHistorieta(bool conFundido = true)
+    {
+        if (!_histActiva) return;
+
+        if (_bucleHist != null) { StopCoroutine(_bucleHist); _bucleHist = null; }
+        if (_fundidoHist != null) return;
+
+        if (conFundido && duracionFundidoHistorieta > 0f)
+        {
+            _fundidoHist = StartCoroutine(FundidoHistorieta());
+        }
+        else
+        {
+            PararFuentesHist();
+            _histActiva = false;
+        }
+    }
+
+    IEnumerator BucleHistorieta()
+    {
+        AudioSource activa = _histA;
+        AudioSource otra = _histB;
+
+        float cruce = Mathf.Clamp(duracionCruceHistorieta, 0f, musicaHistorieta.length / 3f);
+
+        activa.clip = musicaHistorieta;
+        activa.volume = volumenHistorieta;
+        activa.time = 0f;
+        activa.Play();
+
+        while (true)
+        {
+            while (activa.isPlaying && activa.time < musicaHistorieta.length - cruce)
+                yield return null;
+
+            otra.clip = musicaHistorieta;
+            otra.volume = 0f;
+            otra.time = 0f;
+            otra.Play();
+
+            float t = 0f;
+            while (t < cruce)
+            {
+                t += Time.unscaledDeltaTime;
+                float k = cruce > 0f ? Mathf.Clamp01(t / cruce) : 1f;
+                activa.volume = volumenHistorieta * Mathf.Cos(k * Mathf.PI * 0.5f);
+                otra.volume = volumenHistorieta * Mathf.Sin(k * Mathf.PI * 0.5f);
+                yield return null;
+            }
+
+            activa.Stop();
+            otra.volume = volumenHistorieta;
+
+            AudioSource aux = activa; activa = otra; otra = aux;
+        }
+    }
+
+    IEnumerator FundidoHistorieta()
+    {
+        float vA = _histA.volume;
+        float vB = _histB.volume;
+        float t = 0f;
+
+        while (t < duracionFundidoHistorieta)
+        {
+            t += Time.unscaledDeltaTime;
+            float k = Mathf.Clamp01(t / duracionFundidoHistorieta);
+            _histA.volume = Mathf.Lerp(vA, 0f, k);
+            _histB.volume = Mathf.Lerp(vB, 0f, k);
+            yield return null;
+        }
+
+        PararFuentesHist();
+        _histActiva = false;
+        _fundidoHist = null;
+    }
+
+    void PararFuentesHist()
+    {
+        if (_histA != null) { _histA.Stop(); _histA.volume = volumenHistorieta; }
+        if (_histB != null) { _histB.Stop(); _histB.volume = volumenHistorieta; }
+    }
+
     // ── Música del nivel ──────────────────────────────────────────────────────
 
     /// <summary>Arranca la canción desde el principio. Llamar al empezar o reiniciar un nivel.</summary>
     /// <param name="duracionNivel">Duración del nivel en segundos, para que la canción termine a la vez.</param>
     public void IniciarMusicaNivel(float duracionNivel = 0f)
     {
+        // Si venía sonando la música de historieta/tutorial, baja con un fundido
+        DetenerMusicaHistorieta(true);
+
         if (musicaNivel == null || _fuenteMusica == null) return;
 
         ReiniciarAire();
@@ -478,6 +741,10 @@ public class AudioManager : MonoBehaviour
         if (_fuenteAireExtremos != null && _fuenteAireExtremos.isPlaying) _fuenteAireExtremos.Pause();
         if (_fuenteExtintor != null && _fuenteExtintor.isPlaying) _fuenteExtintor.Pause();
         if (_fuenteExtintorExtremos != null && _fuenteExtintorExtremos.isPlaying) _fuenteExtintorExtremos.Pause();
+        if (_fuenteLlamas != null && _fuenteLlamas.isPlaying) _fuenteLlamas.Pause();
+        if (_fuenteCafe != null && _fuenteCafe.isPlaying) _fuenteCafe.Pause();
+        if (_fuenteSoplido != null && _fuenteSoplido.isPlaying) _fuenteSoplido.Pause();
+        if (_fuenteInstalacion != null && _fuenteInstalacion.isPlaying) _fuenteInstalacion.Pause();
         if (_fuenteMusica == null || !_fuenteMusica.isPlaying) return;
         _fuenteMusica.Pause();
         _pausada = true;
@@ -489,6 +756,10 @@ public class AudioManager : MonoBehaviour
         if (_fuenteAireExtremos != null) _fuenteAireExtremos.UnPause();
         if (_fuenteExtintor != null && _usuariosExtintor.Count > 0) _fuenteExtintor.UnPause();
         if (_fuenteExtintorExtremos != null) _fuenteExtintorExtremos.UnPause();
+        if (_fuenteLlamas != null && _servidoresEnLlamas.Count > 0) _fuenteLlamas.UnPause();
+        if (_fuenteCafe != null) _fuenteCafe.UnPause();
+        if (_fuenteSoplido != null) _fuenteSoplido.UnPause();
+        if (_fuenteInstalacion != null) _fuenteInstalacion.UnPause();
         if (_fuenteMusica == null || !_pausada) return;
         _pausada = false;
         _fuenteMusica.UnPause();

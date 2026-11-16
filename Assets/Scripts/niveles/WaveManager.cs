@@ -62,11 +62,15 @@ public class WaveManager : MonoBehaviour
 
     /// <summary>Inicia el nivel con los datos del JSON. Seguro de llamar en cualquier
     /// momento, incluso a mitad de otro nivel (Reiniciar desde la Pausa).</summary>
-    public void IniciarNivel(NivelData datos)
+    public void IniciarNivel(NivelData datos, bool esReintento = false)
     {
         // Detener cualquier corrutina de oleadas viva (del nivel anterior o del
         // mismo nivel si esto es un reinicio a mitad de partida).
         StopAllCoroutines();
+
+        // Pantalla negra de golpe: la limpieza del nivel anterior (laptops, mesas,
+        // jugadores reposicionados) ocurre mientras no se ve nada.
+        if (FundidoPantalla.Instance != null) FundidoPantalla.Instance.NegroInstantaneo();
 
         _nivelActual = datos;
         _corriendo = true;
@@ -78,7 +82,7 @@ public class WaveManager : MonoBehaviour
         // NUEVO: arrancar el reloj y contadores del GameManager justo ahora
         if (GameManager.Instance != null)
         {
-            GameManager.Instance.IniciarNivel(datos.nivel);
+            GameManager.Instance.IniciarNivel(datos.nivel, esReintento);
             GameManager.Instance.incendiosActivos = datos.incendios;
 
             // Total de laptops que saldrán (JSON × jugadores) para el fin anticipado
@@ -118,10 +122,17 @@ public class WaveManager : MonoBehaviour
         }
 
         StartCoroutine(EjecutarOleadas());
+
+        // De negro a la escena (tiempo real, funciona aunque el tutorial congele el juego).
+        // Si hay historieta de inicio, el aclarado lo hace ella al cerrarse.
+        if (!ComicManager.Activo && FundidoPantalla.Instance != null) FundidoPantalla.Instance.Aclarar();
     }
 
     IEnumerator EjecutarOleadas()
     {
+        // Si hay un tutorial en pantalla, las oleadas esperan a que se cierre
+        while (TutorialManager.Activo || ComicManager.Activo) yield return null;
+
         float tiempoInicio = Time.time;
 
         _nivelActual.oleadas.Sort((a, b) => a.segundo.CompareTo(b.segundo));
@@ -217,12 +228,7 @@ public class WaveManager : MonoBehaviour
 
         // Vaciar las manos de los jugadores por si sostenían algo justo cuando terminó el nivel anterior
         foreach (PlayerInteraction p in FindObjectsByType<PlayerInteraction>(FindObjectsSortMode.None))
-        {
-            p.isHoldingItem = false;
-            p.heldItem = null;
-            if (p.anim != null) p.anim.SetBool("isHolding", false);
-            p.AjustarCollider(false);
-        }
+            p.VaciarManos();
 
         // Reiniciar a los personajes: stamina llena y de vuelta en su punto de inicio
         foreach (PlayerMovement m in FindObjectsByType<PlayerMovement>(FindObjectsSortMode.None))
@@ -234,24 +240,11 @@ public class WaveManager : MonoBehaviour
         Debug.Log($"WaveManager: Nivel anterior limpiado — {laptopsDestruidas} laptops y {piezasDestruidas} piezas destruidas.");
     }
 
-    /// <summary>
-    /// Detiene por completo las oleadas en curso y recopila los datos REALES y FINALES para enviarlos a la red.
-    /// </summary>
+    /// <summary>Detiene por completo las oleadas en curso (usado al salir al menú desde la Pausa).</summary>
     public void DetenerNivel()
     {
         StopAllCoroutines();
         _corriendo = false;
-
-        // 1. Obtener datos REALES y FINALES del GameManager
-        int nivelNumero = GameManager.Instance != null ? GameManager.Instance.NivelActualNumero : 1;
-        int estrellas = GameManager.Instance != null ? GameManager.Instance.EstrellasFinales : 0; // ← CAMBIO AQUÍ
-        int score = GameManager.Instance != null ? GameManager.Instance.ScoreFinal : 0;           // ← Y AQUÍ
-        int ticketsComp = GameManager.Instance != null ? GameManager.Instance.LaptopsEntregadas : 0;
-        int ticketsFail = GameManager.Instance != null ? GameManager.Instance.LaptopsPerdidas : 0;
-        int duracion = GameManager.Instance != null ? Mathf.FloorToInt(GameManager.Instance.TiempoTranscurrido) : 0;
-
-        // 2. Llamar a la función de guardado con los datos reales
-        OnLevelComplete(nivelNumero, score, estrellas, ticketsComp, ticketsFail, duracion);
     }
 
     void SpawnLaptop(string tipo)
@@ -303,58 +296,5 @@ public class WaveManager : MonoBehaviour
         laptop.problemasActivos.Clear();
         for (int i = 0; i < Mathf.Min(cantidad, mezclado.Count); i++)
             laptop.problemasActivos.Add(mezclado[i]);
-    }
-
-    /// <summary>
-    /// Construye el payload JSON limpio y lo envía al backend de Render.
-    /// </summary>
-    private void OnLevelComplete(int nivelNumero, int score, int estrellas, int ticketsComp, int ticketsFail, int duracion)
-    {
-        Debug.Log($"WaveManager: Nivel {nivelNumero} completado — Score: {score}, Stars: {estrellas}, Tickets: {ticketsComp}/{ticketsFail}, Duration: {duracion}s");
-
-        // 1. Verificación de seguridad
-        if (GameSessionSaver.Instance == null)
-        {
-            Debug.LogError("❌ CRÍTICO: GameSessionSaver.Instance es NULL. Asegúrate de añadir el script GameSessionSaver a un GameObject en la escena.");
-            return;
-        }
-
-        // 2. IDs para el backend (el backend espera strings)
-        string worldId = "world_1";
-        string levelId = $"nivel_{nivelNumero}";
-
-        // 3. ObjectId de prueba válido (24 caracteres hex)
-        string testUserId = "6ae69f4cf3d30eec400e04e5";
-
-        // 4. Crear el payload LIMPIO (sin _id, para que MongoDB lo genere)
-        SessionCreateRequest cleanRequest = new SessionCreateRequest
-        {
-            levelId = levelId,
-            worldId = worldId,
-            players = new List<string> { testUserId },
-            score = score,
-            starsEarned = estrellas,
-            ticketsCompleted = ticketsComp,
-            ticketsFailed = ticketsFail,
-            durationSeconds = duracion,
-            equipment = "Laptop",
-            repairType = "Otros",
-            completed = true
-        };
-
-        Debug.Log($"📤 ENVIANDO SESIÓN REAL A LA RED: {levelId} | Score: {score} | Tickets: {ticketsComp}/{ticketsFail}");
-
-        // 5. ¡AQUÍ ESTÁ LA MAGIA! Usamos el nuevo método limpio
-        FixItNetworkManager.Instance.PostSessionClean(
-            sessionRequest: cleanRequest,
-            onSuccess: (savedSession) =>
-            {
-                Debug.Log($"✅ ¡ÉXITO! Sesión guardada en MongoDB con ID: {savedSession._id}");
-            },
-            onError: (error) =>
-            {
-                Debug.LogError($"❌ FALLÓ el envío a la base de datos: {error}");
-            }
-        );
     }
 }

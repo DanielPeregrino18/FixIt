@@ -41,18 +41,18 @@ public class Server : MonoBehaviour, IExtinguishable
     public Image barraRelleno;
 
     // ── Estado interno ────────────────────────────────────────────────────────
-    private EstadoServidor _estado          = EstadoServidor.Normal;
-    private float          _timerActivacion = 0f; // cuenta desde que se programó
-    private float          _timerFase       = 0f;
-    private float          _timerApagando   = 0f;
+    private EstadoServidor _estado = EstadoServidor.Normal;
+    private float _timerActivacion = 0f; // cuenta desde que se programó
+    private float _timerFase = 0f;
+    private float _timerApagando = 0f;
 
     // ─────────────────────────────────────────────────────────────────────────
 
     void Start()
     {
-        if (barraUI != null)            barraUI.SetActive(false);
-        if (humoParticles != null)      humoParticles.Stop();
-        if (fuegoParticles != null)     fuegoParticles.Stop();
+        if (barraUI != null) barraUI.SetActive(false);
+        if (humoParticles != null) humoParticles.Stop();
+        if (fuegoParticles != null) fuegoParticles.Stop();
         if (explosionParticles != null) explosionParticles.gameObject.SetActive(false);
     }
 
@@ -90,10 +90,10 @@ public class Server : MonoBehaviour, IExtinguishable
     /// <summary>Programa el incendio para dentro de X segundos (llamado por WaveManager).</summary>
     public void ProgramarIncendio(float segundos)
     {
-        activarIncendio  = true;
+        activarIncendio = true;
         tiempoActivacion = segundos;
         _timerActivacion = 0f;
-        _estado          = EstadoServidor.Normal;
+        _estado = EstadoServidor.Normal;
         Debug.Log($"Server {servidorId}: incendio programado en {segundos}s.");
     }
 
@@ -105,15 +105,17 @@ public class Server : MonoBehaviour, IExtinguishable
     {
         StopAllCoroutines(); // cancela un GameOverConDelay pendiente si explotó justo antes
 
-        activarIncendio  = false;
+        activarIncendio = false;
         _timerActivacion = 0f;
-        _timerFase       = 0f;
-        _timerApagando   = 0f;
-        _estado          = EstadoServidor.Normal;
+        _timerFase = 0f;
+        _timerApagando = 0f;
+        _estado = EstadoServidor.Normal;
 
-        if (humoParticles != null)      humoParticles.Stop();
-        if (fuegoParticles != null)     fuegoParticles.Stop();
-        if (barraUI != null)            barraUI.SetActive(false);
+        AudioManager.DetenerLlamasServidor(this);
+
+        if (humoParticles != null) humoParticles.Stop();
+        if (fuegoParticles != null) fuegoParticles.Stop();
+        if (barraUI != null) barraUI.SetActive(false);
         if (explosionParticles != null) explosionParticles.gameObject.SetActive(false);
     }
 
@@ -143,8 +145,8 @@ public class Server : MonoBehaviour, IExtinguishable
 
     void EntrarEnAdvertencia()
     {
-        _estado        = EstadoServidor.Advertencia;
-        _timerFase     = 0f;
+        _estado = EstadoServidor.Advertencia;
+        _timerFase = 0f;
         _timerApagando = 0f;
 
         if (humoParticles != null) humoParticles.Play();
@@ -153,24 +155,28 @@ public class Server : MonoBehaviour, IExtinguishable
 
     void EntrarEnLlamas()
     {
-        _estado    = EstadoServidor.EnLlamas;
+        _estado = EstadoServidor.EnLlamas;
         _timerFase = 0f;
 
-        if (humoParticles != null)  humoParticles.Stop();
+        if (humoParticles != null) humoParticles.Stop();
         if (fuegoParticles != null) fuegoParticles.Play();
+        AudioManager.IniciarLlamasServidor(this); // loop de llamas (en humo no suena)
+        if (GameManager.Instance != null) GameManager.Instance.RegistrarIncendioServidor();
+        // GestureController.MostrarGestoATodos(TipoGesto.Panico); // pendiente: integrar sistema de gestos
         Debug.Log($"Server {servidorId}: 🔥 ¡en llamas!");
     }
 
     void Apagar()
     {
-        _estado         = EstadoServidor.Normal;
-        _timerFase      = 0f;
-        _timerApagando  = 0f;
+        _estado = EstadoServidor.Normal;
+        _timerFase = 0f;
+        _timerApagando = 0f;
         activarIncendio = false; // evento único: ya se resolvió
 
-        if (humoParticles != null)  humoParticles.Stop();
+        if (humoParticles != null) humoParticles.Stop();
         if (fuegoParticles != null) fuegoParticles.Stop();
-        if (barraUI != null)        barraUI.SetActive(false);
+        if (barraUI != null) barraUI.SetActive(false);
+        AudioManager.DetenerLlamasServidor(this);
 
         Debug.Log($"Server {servidorId}: ✅ incendio apagado.");
     }
@@ -181,6 +187,10 @@ public class Server : MonoBehaviour, IExtinguishable
 
         // El fuego sigue — el servidor queda ardiendo tras la explosión
         if (barraUI != null) barraUI.SetActive(false);
+
+        // Suena la explosión y el loop de llamas se corta
+        AudioManager.DetenerLlamasServidor(this);
+        AudioManager.ExplosionServidor();
 
         if (explosionParticles != null)
         {

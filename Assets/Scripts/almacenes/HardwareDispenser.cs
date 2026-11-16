@@ -48,9 +48,11 @@ public class HardwareDispenser : InteractableTable
         );
 
         player.isHoldingItem = true;
-        player.heldItem      = pieza;
+        player.heldItem = pieza;
         if (player.anim != null) player.anim.SetBool("isHolding", true);
         player.AjustarCollider(true);
+
+        AudioManager.Expendedora();
 
         Debug.Log("HardwareDispenser: Pieza entregada al jugador.");
     }

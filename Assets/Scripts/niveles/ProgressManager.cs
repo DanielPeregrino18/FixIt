@@ -11,6 +11,9 @@ public class ProgressManager : MonoBehaviour
 
     private IProgressStore _store;
 
+    /// <summary>Avisa cuando la nube trajo progreso nuevo, para que la UI se actualice.</summary>
+    public event System.Action ProgresoActualizado;
+
     public const int TOTAL_NIVELES = 20;
 
     void Awake()
@@ -21,7 +24,9 @@ public class ProgressManager : MonoBehaviour
 
         string testUserId = "6ae69f4cf3d30eec400e04e5";
         
-        _store = new RemoteProgressStore(testUserId, this); // ← Usa el remoto
+        RemoteProgressStore store = new RemoteProgressStore(testUserId, this); // ← Guarda en local y sincroniza con la nube
+        store.ProgresoCambiado += () => ProgresoActualizado?.Invoke();
+        _store = store;
     }
 
     public int ObtenerEstrellas(int nivel) => _store.ObtenerEstrellas(nivel);

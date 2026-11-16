@@ -1,59 +1,169 @@
 using UnityEngine;
+using System;
 using System.Collections;
 
 /// <summary>
-/// Implementación de IProgressStore que guarda y carga datos desde el backend de Render.
+/// Implementación de IProgressStore con guardado local y sincronización con el backend de Render.
+/// El juego siempre lee y escribe en local (PlayerPrefs), así funciona sin conexión; un ciclo en
+/// segundo plano combina lo local con la nube conservando el mayor número de estrellas de cada nivel.
 /// Con mapeo automático de niveles a mundos (1-5=Mundo1, 6-10=Mundo2, etc.)
 /// </summary>
 public class RemoteProgressStore : IProgressStore
 {
+    private const float SEGUNDOS_ENTRE_INTENTOS = 60f;
+
     private readonly string _userId;
-    private UserProgress _cachedProgress;
-    private bool _isInitialized = false;
-    private readonly MonoBehaviour _coroutineRunner;
+    private readonly LocalProgressStore _local = new LocalProgressStore();
+
+    // Empieza en true para comparar con la nube al abrir el juego: ahí se suben los
+    // resultados que quedaron guardados sin conexión en una ejecución anterior.
+    private bool _pendiente = true;
+    private bool _sincronizarYa = false;
+
+    /// <summary>Se dispara cuando la nube trajo estrellas que no estaban en este dispositivo.</summary>
+    public event Action ProgresoCambiado;
 
     public RemoteProgressStore(string userId, MonoBehaviour coroutineRunner)
     {
         _userId = userId;
-        _coroutineRunner = coroutineRunner;
-        _coroutineRunner.StartCoroutine(CargarProgresoInicialCoroutine());
+        coroutineRunner.StartCoroutine(CicloDeSincronizacion());
     }
 
-    private IEnumerator CargarProgresoInicialCoroutine()
+    public int ObtenerEstrellas(int nivel) => _local.ObtenerEstrellas(nivel);
+
+    public int ObtenerNivelDesbloqueado() => _local.ObtenerNivelDesbloqueado();
+
+    public void GuardarCambios() => _local.GuardarCambios();
+
+    public void GuardarEstrellas(int nivel, int estrellas)
+    {
+        int anteriores = _local.ObtenerEstrellas(nivel);
+        _local.GuardarEstrellas(nivel, estrellas);
+
+        if (estrellas > anteriores)
+        {
+            Debug.Log($"💾 Progreso guardado en local: nivel {nivel} con {estrellas} estrellas");
+            _pendiente = true;
+            _sincronizarYa = true;
+        }
+    }
+
+    // Un único ciclo secuencial: nunca hay dos sincronizaciones a la vez.
+    // Usa tiempo sin escala porque el juego pone timeScale en 0 en pausa y al terminar un nivel.
+    private IEnumerator CicloDeSincronizacion()
     {
         yield return null;
 
-        int intentos = 0;
-        while (FixItNetworkManager.Instance == null && intentos < 10)
+        while (true)
         {
-            yield return new WaitForSeconds(0.1f);
-            intentos++;
-        }
+            if (_pendiente || SessionQueue.HayPendientes)
+            {
+                _pendiente = false;
+                _sincronizarYa = false;
+                yield return Sincronizar();
+            }
 
-        if (FixItNetworkManager.Instance == null)
+            float espera = SEGUNDOS_ENTRE_INTENTOS;
+            while (espera > 0f && !_sincronizarYa)
+            {
+                espera -= Time.unscaledDeltaTime;
+                yield return null;
+            }
+        }
+    }
+
+    private IEnumerator Sincronizar()
+    {
+        FixItNetworkManager red = FixItNetworkManager.Instance;
+        if (red == null)
         {
-            Debug.LogError("❌ FixItNetworkManager no se encontró.");
-            _isInitialized = true;
+            _pendiente = true;
             yield break;
         }
 
-        Debug.Log($"📡 Solicitando progreso para usuario: {_userId}");
+        bool termino = false;
+        bool fallo = false;
+        UserProgress remoto = null;
 
-        FixItNetworkManager.Instance.GetProgress(
+        red.GetProgress(
             userId: _userId,
             onSuccess: (progress) =>
             {
-                _cachedProgress = progress;
-                _isInitialized = true;
-                Debug.Log($"✅ Progreso remoto cargado: {progress.worlds.Length} mundos");
+                remoto = progress;
+                termino = true;
             },
             onError: (error) =>
             {
-                Debug.LogWarning($"⚠️ No se pudo cargar progreso remoto (¿Usuario nuevo?): {error}");
-                _cachedProgress = new UserProgress { userId = _userId, worlds = new WorldProgressEntry[0] };
-                _isInitialized = true;
+                // 404 = el usuario aún no tiene progreso en la nube: todo lo local se sube
+                if (!error.StartsWith("HTTP 404")) fallo = true;
+                termino = true;
             }
         );
+        yield return new WaitUntil(() => termino);
+
+        if (fallo)
+        {
+            _pendiente = true;
+            yield break;
+        }
+
+        bool cambioLocal = false;
+
+        for (int nivel = 1; nivel <= ProgressManager.TOTAL_NIVELES; nivel++)
+        {
+            int estrellasRemotas = ObtenerEstrellasRemotas(remoto, nivel);
+            int estrellasLocales = _local.ObtenerEstrellas(nivel);
+
+            if (estrellasRemotas > estrellasLocales)
+            {
+                _local.GuardarEstrellas(nivel, estrellasRemotas);
+                cambioLocal = true;
+            }
+            else if (estrellasLocales > estrellasRemotas)
+            {
+                termino = false;
+                fallo = false;
+
+                red.UpdateProgress(
+                    userId: _userId,
+                    worldId: ObtenerWorldIdParaNivel(nivel),
+                    levelId: ObtenerLevelIdParaNivel(nivel),
+                    score: 0,
+                    starsEarned: estrellasLocales,
+                    onSuccess: (_) => termino = true,
+                    onError: (error) =>
+                    {
+                        fallo = true;
+                        termino = true;
+                    }
+                );
+                yield return new WaitUntil(() => termino);
+
+                if (fallo)
+                {
+                    _pendiente = true;
+                    break;
+                }
+
+                Debug.Log($"✅ Nivel {nivel} sincronizado con la nube: {estrellasLocales} estrellas");
+            }
+        }
+
+        if (cambioLocal)
+        {
+            Debug.Log("✅ Progreso actualizado desde la nube");
+            ProgresoCambiado?.Invoke();
+        }
+
+        if (!_pendiente)
+            yield return SessionQueue.Enviar(red);
+    }
+
+    private int ObtenerEstrellasRemotas(UserProgress progreso, int nivel)
+    {
+        WorldProgress world = progreso?.GetWorld(ObtenerWorldIdParaNivel(nivel));
+        LevelProgress level = world?.GetLevel(ObtenerLevelIdParaNivel(nivel));
+        return level != null ? level.bestStars : 0;
     }
 
     /// <summary>
@@ -72,76 +182,5 @@ public class RemoteProgressStore : IProgressStore
     private string ObtenerLevelIdParaNivel(int nivel)
     {
         return $"nivel_{nivel}";
-    }
-
-    public int ObtenerEstrellas(int nivel)
-    {
-        if (!_isInitialized || _cachedProgress == null) return 0;
-
-        string worldId = ObtenerWorldIdParaNivel(nivel);
-        string levelId = ObtenerLevelIdParaNivel(nivel);
-
-        WorldProgress world = _cachedProgress.GetWorld(worldId);
-
-        if (world != null)
-        {
-            LevelProgress level = world.GetLevel(levelId);
-            if (level != null)
-            {
-                return level.bestStars;
-            }
-        }
-        return 0;
-    }
-
-    public void GuardarEstrellas(int nivel, int estrellas)
-    {
-        string worldId = ObtenerWorldIdParaNivel(nivel);
-        string levelId = ObtenerLevelIdParaNivel(nivel);
-
-        Debug.Log($"💾 Guardando progreso: {worldId}/{levelId} con {estrellas} estrellas");
-
-        FixItNetworkManager.Instance.UpdateProgress(
-            userId: _userId,
-            worldId: worldId,
-            levelId: levelId,
-            score: 0,
-            starsEarned: estrellas,
-            onSuccess: (updatedProgress) =>
-            {
-                _cachedProgress = updatedProgress;
-                Debug.Log($"✅ Progreso remoto guardado correctamente");
-            },
-            onError: (error) =>
-            {
-                Debug.LogError($"❌ Error guardando progreso remoto: {error}");
-            }
-        );
-    }
-
-    public int ObtenerNivelDesbloqueado()
-    {
-        if (!_isInitialized) return 1;
-
-        int maxDesbloqueado = 1;
-
-        for (int i = 1; i <= ProgressManager.TOTAL_NIVELES; i++)
-        {
-            if (ObtenerEstrellas(i) > 0)
-            {
-                maxDesbloqueado = i + 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        return Mathf.Min(maxDesbloqueado, ProgressManager.TOTAL_NIVELES);
-    }
-
-    public void GuardarCambios()
-    {
-        throw new System.NotImplementedException();
     }
 }
