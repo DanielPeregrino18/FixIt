@@ -58,6 +58,7 @@ public class CoffeeMachine : InteractableTable
 
         // Bloquear movimiento mientras toma el café
         pm.movimientoBloqueado = true;
+        player.tomandoCafe = true; // tampoco puede recoger ni soltar cosas
 
         // Guardar la rotación original para regresar exacto a como estaba,
         // sin importar hacia dónde estuviera mirando el jugador antes de esto.
@@ -113,6 +114,7 @@ public class CoffeeMachine : InteractableTable
 
         // Desbloquear movimiento
         pm.movimientoBloqueado = false;
+        player.tomandoCafe = false;
 
         _enUso = false;
 

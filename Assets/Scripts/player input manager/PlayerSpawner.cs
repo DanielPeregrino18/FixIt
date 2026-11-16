@@ -28,7 +28,7 @@ public class PlayerSpawner : MonoBehaviour
     /// </summary>
     public void ReposicionarJugadores()
     {
-        foreach (PlayerJoinHandler j in FindObjectsByType<PlayerJoinHandler>(FindObjectsSortMode.None))
+        foreach (PlayerJoinHandler j in FindObjectsByType<PlayerJoinHandler>())
         {
             int indice = j.JugadorId - 1;
             if (indice < 0 || indice >= spawnPoints.Length || spawnPoints[indice] == null) continue;

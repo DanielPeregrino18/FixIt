@@ -35,7 +35,6 @@ public class WaveManager : MonoBehaviour
 
     // ── Estado interno ────────────────────────────────────────────────────────
     private NivelData _nivelActual;
-    private bool _corriendo = false;
 
     private static readonly Laptop.Problema[] _problemasFacil = {
         Laptop.Problema.Limpieza,
@@ -73,7 +72,6 @@ public class WaveManager : MonoBehaviour
         if (FundidoPantalla.Instance != null) FundidoPantalla.Instance.NegroInstantaneo();
 
         _nivelActual = datos;
-        _corriendo = true;
 
         // Limpiar cualquier laptop/pieza y estado de mesas que haya
         // quedado del nivel anterior (el juego no recarga la escena entre niveles)
@@ -98,7 +96,7 @@ public class WaveManager : MonoBehaviour
 
         // Configurar servidores: primero desactivar todos, luego programar
         // solo los que indica el JSON de este nivel.
-        Server[] servidoresEscena = FindObjectsByType<Server>(FindObjectsSortMode.None);
+        Server[] servidoresEscena = FindObjectsByType<Server>();
         foreach (Server s in servidoresEscena)
             s.Desactivar();
 
@@ -154,7 +152,6 @@ public class WaveManager : MonoBehaviour
             StartCoroutine(EjecutarOleadaEscalada(oleada, jugadores));
         }
 
-        _corriendo = false;
         Debug.Log("WaveManager: Todas las oleadas fueron lanzadas.");
     }
 
@@ -205,36 +202,36 @@ public class WaveManager : MonoBehaviour
     void LimpiarNivelAnterior()
     {
         int laptopsDestruidas = 0;
-        foreach (Laptop l in FindObjectsByType<Laptop>(FindObjectsSortMode.None))
+        foreach (Laptop l in FindObjectsByType<Laptop>())
         {
             if (l != null) { Destroy(l.gameObject); laptopsDestruidas++; }
         }
 
         int piezasDestruidas = 0;
-        foreach (HardwarePiece p in FindObjectsByType<HardwarePiece>(FindObjectsSortMode.None))
+        foreach (HardwarePiece p in FindObjectsByType<HardwarePiece>())
         {
             if (p != null) { Destroy(p.gameObject); piezasDestruidas++; }
         }
 
-        foreach (var t in FindObjectsByType<NormalTable>(FindObjectsSortMode.None)) t.LimpiarParaNuevoNivel();
-        foreach (var t in FindObjectsByType<CleaningTable>(FindObjectsSortMode.None)) t.LimpiarParaNuevoNivel();
-        foreach (var t in FindObjectsByType<RepairTable>(FindObjectsSortMode.None)) t.LimpiarParaNuevoNivel();
-        foreach (var t in FindObjectsByType<UpdateTable>(FindObjectsSortMode.None)) t.LimpiarParaNuevoNivel();
-        foreach (var t in FindObjectsByType<SlotTable>(FindObjectsSortMode.None)) t.LimpiarParaNuevoNivel();
+        foreach (var t in FindObjectsByType<NormalTable>()) t.LimpiarParaNuevoNivel();
+        foreach (var t in FindObjectsByType<CleaningTable>()) t.LimpiarParaNuevoNivel();
+        foreach (var t in FindObjectsByType<RepairTable>()) t.LimpiarParaNuevoNivel();
+        foreach (var t in FindObjectsByType<UpdateTable>()) t.LimpiarParaNuevoNivel();
+        foreach (var t in FindObjectsByType<SlotTable>()) t.LimpiarParaNuevoNivel();
 
         // Devolver cada extintor a su estación con carga completa
-        foreach (var e in FindObjectsByType<ExtinguisherStation>(FindObjectsSortMode.None))
+        foreach (var e in FindObjectsByType<ExtinguisherStation>())
             e.ResetearExtintor();
 
         // Vaciar las manos de los jugadores por si sostenían algo justo cuando terminó el nivel anterior
-        foreach (PlayerInteraction p in FindObjectsByType<PlayerInteraction>(FindObjectsSortMode.None))
+        foreach (PlayerInteraction p in FindObjectsByType<PlayerInteraction>())
             p.VaciarManos();
 
         // Reiniciar a los personajes: stamina llena y de vuelta en su punto de inicio
-        foreach (PlayerMovement m in FindObjectsByType<PlayerMovement>(FindObjectsSortMode.None))
+        foreach (PlayerMovement m in FindObjectsByType<PlayerMovement>())
             m.ReiniciarEstado();
 
-        PlayerSpawner spawner = FindFirstObjectByType<PlayerSpawner>();
+        PlayerSpawner spawner = FindAnyObjectByType<PlayerSpawner>();
         if (spawner != null) spawner.ReposicionarJugadores();
 
         Debug.Log($"WaveManager: Nivel anterior limpiado — {laptopsDestruidas} laptops y {piezasDestruidas} piezas destruidas.");
@@ -244,7 +241,6 @@ public class WaveManager : MonoBehaviour
     public void DetenerNivel()
     {
         StopAllCoroutines();
-        _corriendo = false;
     }
 
     void SpawnLaptop(string tipo)

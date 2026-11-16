@@ -191,6 +191,9 @@ public class Laptop : MonoBehaviour, IExtinguishable
     // a rociar) hasta llegar al tiempo necesario. Al cambiar de fase, el avance vuelve a cero.
     public bool EstaEnPeligro() => EstaEnLlamas() || EstaEnAdvertencia();
 
+    /// <summary>True mientras el jugador le sopla (no puede soltarla ni moverse).</summary>
+    public bool EstaSoplandose() => _bloqueadaTemp;
+
     public void RecibirChorroExtintor(float deltaTime)
     {
         if (!EstaEnPeligro()) return;

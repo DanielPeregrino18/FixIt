@@ -310,7 +310,7 @@ public class GameManager : MonoBehaviour
         if (barraProgreso != null) barraProgreso.fillAmount = 0f;
 
         // NUEVO: desbloquear movimiento por si venía de un TerminarNivel/GameOver anterior
-        PlayerMovement[] movs = FindObjectsByType<PlayerMovement>(FindObjectsSortMode.None);
+        PlayerMovement[] movs = FindObjectsByType<PlayerMovement>();
         foreach (PlayerMovement m in movs)
             m.movimientoBloqueado = false;
 
@@ -578,7 +578,7 @@ public class GameManager : MonoBehaviour
     /// </summary>
     void LimpiarLaptopsSinEntregar(bool contarComoPerdidas)
     {
-        Laptop[] restantes = FindObjectsByType<Laptop>(FindObjectsSortMode.None);
+        Laptop[] restantes = FindObjectsByType<Laptop>();
         int contador = 0;
 
         foreach (Laptop l in restantes)
@@ -609,7 +609,7 @@ public class GameManager : MonoBehaviour
     /// <summary>Bloquea el movimiento de todos los jugadores activos (fin de nivel / game over).</summary>
     void BloquearJugadores()
     {
-        PlayerMovement[] movs = FindObjectsByType<PlayerMovement>(FindObjectsSortMode.None);
+        PlayerMovement[] movs = FindObjectsByType<PlayerMovement>();
         foreach (PlayerMovement m in movs)
             m.movimientoBloqueado = true;
     }
@@ -1083,7 +1083,7 @@ public class GameManager : MonoBehaviour
         pantallaResultados.SetActive(false);
 
         // Desactivar movimiento/interacción de todos los jugadores
-        PlayerJoinHandler[] jugadores = FindObjectsByType<PlayerJoinHandler>(FindObjectsSortMode.None);
+        PlayerJoinHandler[] jugadores = FindObjectsByType<PlayerJoinHandler>();
         foreach (PlayerJoinHandler j in jugadores)
             j.ActivarModoJuego(false);
 
@@ -1110,11 +1110,11 @@ public class GameManager : MonoBehaviour
         LimpiarLaptopsSinEntregar(contarComoPerdidas: false);
 
         // También piezas de hardware sueltas
-        foreach (HardwarePiece p in FindObjectsByType<HardwarePiece>(FindObjectsSortMode.None))
+        foreach (HardwarePiece p in FindObjectsByType<HardwarePiece>())
             if (p != null) Destroy(p.gameObject);
 
         // Ocultar HUDs activos y desvincularlos
-        foreach (PlayerHUD hud in FindObjectsByType<PlayerHUD>(FindObjectsSortMode.None))
+        foreach (PlayerHUD hud in FindObjectsByType<PlayerHUD>())
         {
             hud.jugador = null;
             hud.gameObject.SetActive(false);

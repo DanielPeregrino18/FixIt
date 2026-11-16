@@ -172,7 +172,7 @@ public class LobbyManager : MonoBehaviour
         secciones[jugadorId - 1].Desactivar();
 
         // Destruir el personaje de ese jugador (el PlayerInputManager libera su índice)
-        PlayerJoinHandler[] jugadores = FindObjectsByType<PlayerJoinHandler>(FindObjectsSortMode.None);
+        PlayerJoinHandler[] jugadores = FindObjectsByType<PlayerJoinHandler>();
         foreach (PlayerJoinHandler j in jugadores)
         {
             if (j.JugadorId == jugadorId)
@@ -220,7 +220,7 @@ public class LobbyManager : MonoBehaviour
     public void ReiniciarLobby()
     {
         // Destruir los personajes instanciados (el PlayerInputManager libera sus índices)
-        PlayerJoinHandler[] jugadores = FindObjectsByType<PlayerJoinHandler>(FindObjectsSortMode.None);
+        PlayerJoinHandler[] jugadores = FindObjectsByType<PlayerJoinHandler>();
         foreach (PlayerJoinHandler j in jugadores)
             Destroy(j.gameObject);
 

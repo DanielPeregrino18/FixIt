@@ -31,6 +31,9 @@ public class FixItNetworkManager : MonoBehaviour
         }
 
         Instance = this;
+        // DontDestroyOnLoad solo funciona en objetos raíz; en la escena está dentro de
+        // Menu_Principal. Al sacarlo también deja de apagarse cuando se oculta el menú.
+        if (transform.parent != null) transform.SetParent(null, true);
         DontDestroyOnLoad(gameObject);
     }
 
@@ -377,6 +380,8 @@ public class FixItNetworkManager : MonoBehaviour
         public int starsEarned;
     }
 
+    // JsonUtility llena estos campos por reflexión; el compilador no lo ve (CS0649)
+#pragma warning disable 0649
     [Serializable]
     private class UserResponse { public User user; }
     [Serializable]
@@ -392,4 +397,5 @@ public class FixItNetworkManager : MonoBehaviour
     }
     [Serializable]
     private class NewsArrayResponse { public NewsItem[] items; }
+#pragma warning restore 0649
 }

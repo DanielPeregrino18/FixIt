@@ -29,6 +29,9 @@ public class PlayerInteraction : MonoBehaviour
     public bool isHoldingItem = false;
     public GameObject heldItem = null;
 
+    /// <summary>True mientras toma café: no puede recoger, soltar ni usar mesas.</summary>
+    [HideInInspector] public bool tomandoCafe = false;
+
     [Header("Físicas y Colisiones (Anti-Traspaso)")]
     public BoxCollider playerCollider;
 
@@ -125,6 +128,24 @@ public class PlayerInteraction : MonoBehaviour
         DetectAhead();
         ActualizarItemBajoPies();
 
+        // Mientras toma café no puede recoger, soltar ni usar mesas
+        if (tomandoCafe)
+        {
+            ActualizarAnimacionSostenido();
+            return;
+        }
+
+        // Mientras le sopla a la laptop que carga, no puede soltarla ni interactuar
+        if (isHoldingItem && heldItem != null)
+        {
+            Laptop laptopEnMano = heldItem.GetComponent<Laptop>();
+            if (laptopEnMano != null && laptopEnMano.EstaSoplandose())
+            {
+                ActualizarAnimacionSostenido();
+                return;
+            }
+        }
+
         if (interactAction != null && interactAction.WasPressedThisFrame())
         {
             if (_currentTable != null)
@@ -133,7 +154,8 @@ public class PlayerInteraction : MonoBehaviour
                 _currentTable.Interact(this);
 
                 // Si la mesa no te dio nada, recoger lo que haya bajo los pies
-                if (manosLibresAntes && !isHoldingItem)
+                // (salvo que la mesa fuera la cafetera y ya esté tomando café)
+                if (manosLibresAntes && !isHoldingItem && !tomandoCafe)
                     IntentarRecogerBajoPies();
             }
             else if (_currentItemOnFloor != null && !isHoldingItem)

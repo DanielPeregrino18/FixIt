@@ -17,7 +17,7 @@ public class LevelSelector : MonoBehaviour
         GameFlowManager.Instance.MostrarJuego();
 
         // Activar scripts de juego y vincular HUDs
-        PlayerJoinHandler[] jugadores = FindObjectsByType<PlayerJoinHandler>(FindObjectsSortMode.None);
+        PlayerJoinHandler[] jugadores = FindObjectsByType<PlayerJoinHandler>();
         foreach (PlayerJoinHandler j in jugadores)
             j.ActivarModoJuego(true, hudsJugadores);
 
