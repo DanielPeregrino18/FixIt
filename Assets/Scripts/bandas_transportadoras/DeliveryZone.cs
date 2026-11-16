@@ -63,6 +63,9 @@ public class DeliveryZone : InteractableTable
         // Ya quedó registrada: la limpieza de fin de nivel no debe contarla otra vez
         laptopScript.yaEntregada = true;
 
+        if (estaCompleta) AudioManager.EntregaCorrecta();
+        else AudioManager.EntregaIncorrecta();
+
         // Registrar en el GameManager
         if (GameManager.Instance != null)
         {

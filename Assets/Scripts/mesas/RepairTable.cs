@@ -150,9 +150,41 @@ public class RepairTable : InteractableTable
         if (iconoBotonSecundario != null) iconoBotonSecundario.SetActive(false);
     }
 
+    /// <summary>
+    /// Sale del minijuego sin completarlo: el progreso se pierde y la laptop sigue en la mesa
+    /// esperando a que alguien empiece de nuevo. La llama PlayerInteraction cuando el jugador
+    /// pulsa el botón de golpear sin estar apuntando a esta mesa (por ejemplo, si lo empujaron).
+    /// </summary>
+    public void CancelarReparacion()
+    {
+        if (_estado != Estado.Reparando) return;
+
+        PlayerInteraction jugador = _jugadorReparando; // guardar antes de que se limpie
+        DesbloquearJugador();
+
+        if (_martilloInstanciado != null) Destroy(_martilloInstanciado);
+        _martilloInstanciado = null;
+
+        if (jugador != null && jugador.anim != null)
+        {
+            jugador.anim.ResetTrigger("Martillazo");
+            jugador.anim.SetBool("SosteniendoMartillo", false);
+        }
+
+        _pulsacionesCompletadas = 0;
+        _estado = Estado.EsperandoIniciar;
+
+        ActualizarBarra();
+        if (barraUI != null) barraUI.SetActive(false);
+        if (iconoBotonSecundario != null) iconoBotonSecundario.SetActive(true);
+
+        Debug.Log("RepairTable: Reparación cancelada (el jugador ya no apunta a la mesa). Se pierde el progreso.");
+    }
+
     void IniciarMinijuego(PlayerInteraction player)
     {
         _jugadorReparando = player;
+        player.mesaReparando = this;
 
         PlayerMovement pm = player.GetComponent<PlayerMovement>();
         if (pm != null) pm.movimientoBloqueado = true;
@@ -263,6 +295,7 @@ public class RepairTable : InteractableTable
         {
             PlayerMovement pm = _jugadorReparando.GetComponent<PlayerMovement>();
             if (pm != null) pm.movimientoBloqueado = false;
+            if (_jugadorReparando.mesaReparando == this) _jugadorReparando.mesaReparando = null;
             _jugadorReparando = null;
         }
     }

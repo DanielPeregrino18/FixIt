@@ -66,6 +66,14 @@ public class CalendarioNiveles : MonoBehaviour
     {
         _timerEntrada = retrasoEntrada;
         GenerarCalendario();
+        if (ProgressManager.Instance != null)
+            ProgressManager.Instance.ProgresoActualizado += GenerarCalendario;
+    }
+
+    void OnDisable()
+    {
+        if (ProgressManager.Instance != null)
+            ProgressManager.Instance.ProgresoActualizado -= GenerarCalendario;
     }
 
     void Update()

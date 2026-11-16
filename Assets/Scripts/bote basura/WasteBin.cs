@@ -30,6 +30,8 @@ public class WasteBin : MonoBehaviour
         if (laptop.GetComponent<Collider>() != null)
             laptop.GetComponent<Collider>().enabled = false;
 
+        AudioManager.EntregaIncorrecta();
+
         // Notificar al GameManager
         if (GameManager.Instance != null)
             GameManager.Instance.RegistrarLaptopPerdida();
@@ -62,7 +64,7 @@ public class WasteBin : MonoBehaviour
         Rigidbody rb = laptop.GetComponent<Rigidbody>();
         if (rb != null)
         {
-            rb.isKinematic    = false;
+            rb.isKinematic = false;
             rb.linearVelocity = Vector3.zero;
         }
 

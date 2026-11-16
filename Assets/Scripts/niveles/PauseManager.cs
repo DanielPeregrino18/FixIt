@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.InputSystem;
+using TMPro;
 
 /// <summary>
 /// Pantalla de pausa. Cualquier jugador puede pausar con P (teclado) o
@@ -20,6 +21,18 @@ public class PauseManager : MonoBehaviour
     public GameObject botonReanudar;
     public GameObject botonReiniciar;
     public GameObject botonSalir;
+
+    [Header("Consejos (se muestra uno distinto cada vez que pausas)")]
+    [Tooltip("Texto (TextMeshPro) dentro del Canvas de Pausa donde aparece el consejo")]
+    public TMP_Text textoConsejo;
+    [Tooltip("Cómo se muestra. {0} es el consejo. Ejemplo: Pro tip: {0}")]
+    public string formatoConsejo = "{0}";
+    [Tooltip("Escribe aquí los consejos. Salen en orden aleatorio y no se repiten hasta haber salido todos.")]
+    [TextArea(1, 3)]
+    public string[] consejos;
+
+    private readonly List<int> _mazoConsejos = new List<int>();
+    private int _ultimoConsejo = -1;
 
     private bool _pausado = false;
     private List<GameObject> _botones = new List<GameObject>();
@@ -44,6 +57,9 @@ public class PauseManager : MonoBehaviour
     void Update()
     {
         if (GameManager.Instance == null || !GameManager.Instance.EstaJugando) return;
+
+        // Con un tutorial en pantalla no se puede pausar (reanudar rompería el timeScale)
+        if (TutorialManager.Activo || ComicManager.Activo) return;
 
         if (_pausado) ActualizarNavegacion();
 
@@ -78,8 +94,52 @@ public class PauseManager : MonoBehaviour
         if (AudioManager.Instance != null) AudioManager.Instance.PausarMusica();
         if (canvasPausa != null) canvasPausa.SetActive(true);
 
+        MostrarConsejo();
+
         _indice = 0;
         ActualizarSeleccion();
+    }
+
+    /// <summary>
+    /// Muestra un consejo al azar. Funciona como una baraja: salen todos, en orden aleatorio,
+    /// antes de que se repita alguno, y nunca el mismo dos veces seguidas.
+    /// </summary>
+    void MostrarConsejo()
+    {
+        if (textoConsejo == null) return;
+
+        if (consejos == null || consejos.Length == 0)
+        {
+            textoConsejo.gameObject.SetActive(false);
+            return;
+        }
+
+        if (_mazoConsejos.Count == 0)
+        {
+            for (int i = 0; i < consejos.Length; i++) _mazoConsejos.Add(i);
+
+            // Barajar (Fisher-Yates)
+            for (int i = _mazoConsejos.Count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                int aux = _mazoConsejos[i]; _mazoConsejos[i] = _mazoConsejos[j]; _mazoConsejos[j] = aux;
+            }
+
+            // Que la primera de la nueva baraja no sea la última que se vio
+            if (_mazoConsejos.Count > 1 && _mazoConsejos[_mazoConsejos.Count - 1] == _ultimoConsejo)
+            {
+                int aux = _mazoConsejos[0];
+                _mazoConsejos[0] = _mazoConsejos[_mazoConsejos.Count - 1];
+                _mazoConsejos[_mazoConsejos.Count - 1] = aux;
+            }
+        }
+
+        int indice = _mazoConsejos[_mazoConsejos.Count - 1];
+        _mazoConsejos.RemoveAt(_mazoConsejos.Count - 1);
+        _ultimoConsejo = indice;
+
+        textoConsejo.gameObject.SetActive(true);
+        textoConsejo.text = string.Format(formatoConsejo, consejos[indice]);
     }
 
     public void Reanudar()

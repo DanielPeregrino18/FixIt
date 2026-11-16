@@ -274,6 +274,12 @@ public class FixItNetworkManager : MonoBehaviour
         }
     }
 
+    /// <summary>True si conviene reintentar: sin conexión (HTTP 0) o fallo del servidor (5xx).</summary>
+    public static bool EsErrorTemporal(string error)
+    {
+        return error != null && (error.StartsWith("HTTP 0 ") || error.StartsWith("HTTP 5"));
+    }
+
     private static string BuildUrl(string baseUrl, string path)
     {
         return (baseUrl ?? string.Empty).TrimEnd('/') + path;

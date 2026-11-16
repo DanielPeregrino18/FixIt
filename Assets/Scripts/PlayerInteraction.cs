@@ -42,6 +42,9 @@ public class PlayerInteraction : MonoBehaviour
 
     // ── Estado detectado por el radar ─────────────────────────────────────────
     private InteractableTable _currentTable;
+
+    /// <summary>Mesa de reparación donde este jugador tiene el minijuego en curso (la asigna la propia mesa).</summary>
+    [System.NonSerialized] public RepairTable mesaReparando;
     private GameObject _currentItemOnFloor;
     private GameObject _itemBajoPies;
 
@@ -157,9 +160,18 @@ public class PlayerInteraction : MonoBehaviour
         bool cargaExtintor = isHoldingItem && heldItem != null &&
                              heldItem.GetComponent<Extinguisher>() != null;
 
-        if (!cargaExtintor && _useAction != null && _useAction.WasPressedThisFrame() && _currentTable != null)
+        if (!cargaExtintor && _useAction != null && _useAction.WasPressedThisFrame())
         {
-            _currentTable.SecondaryInteract(this);
+            if (mesaReparando != null && _currentTable != mesaReparando)
+            {
+                // Estaba reparando pero ya no apunta a su mesa (lo movieron): el golpe no
+                // puede conectar, así que se sale del minijuego en vez de quedarse atorado.
+                mesaReparando.CancelarReparacion();
+            }
+            else if (_currentTable != null)
+            {
+                _currentTable.SecondaryInteract(this);
+            }
         }
 
         ActualizarUsoExtintor();
@@ -478,6 +490,26 @@ public class PlayerInteraction : MonoBehaviour
             Gizmos.DrawLine(origen, origen + punto);
             anterior = punto;
         }
+    }
+
+    /// <summary>
+    /// Vacía las manos por completo (nivel nuevo / reinicio): referencia, collider y animación.
+    /// Si el objeto que sostenía ya fue destruido, Unity lo compara como "null" y el resto del
+    /// código creería que nada cambió, así que el Animator se resetea aquí de forma explícita.
+    /// </summary>
+    public void VaciarManos()
+    {
+        isHoldingItem = false;
+        heldItem = null;
+        _ultimoHeldItemParaAnim = null;
+
+        if (anim != null)
+        {
+            anim.SetInteger("TipoObjeto", (int)TipoObjetoSostenido.Ninguno);
+            anim.SetBool("isHolding", false);
+        }
+
+        AjustarCollider(false);
     }
 
     public void AjustarCollider(bool tieneObjeto)

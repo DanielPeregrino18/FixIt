@@ -273,6 +273,8 @@ public class Laptop : MonoBehaviour, IExtinguishable
 
         Debug.Log("Laptop: 💀 Calcinada, se pierde.");
 
+        AudioManager.ExplosionLaptop();
+
         if (GameManager.Instance != null)
             GameManager.Instance.RegistrarLaptopPerdida();
 
@@ -285,6 +287,8 @@ public class Laptop : MonoBehaviour, IExtinguishable
 
         PlayerMovement pm = player != null ? player.GetComponent<PlayerMovement>() : null;
         if (pm != null) pm.movimientoBloqueado = true;
+
+        AudioManager.IniciarSoplido();
 
         Debug.Log("Laptop: 💨 El jugador le sopla para enfriarla...");
         yield return new WaitForSeconds(penalizacionAlRecoger);

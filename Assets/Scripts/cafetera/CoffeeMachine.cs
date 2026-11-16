@@ -92,6 +92,8 @@ public class CoffeeMachine : InteractableTable
         if (player.anim != null)
             player.anim.SetBool("TomandoCafe", true);
 
+        AudioManager.IniciarBeberCafe();
+
         Debug.Log("CoffeeMachine: ☕ Tomando café...");
 
         yield return new WaitForSeconds(tiempoTomandoCafe);
