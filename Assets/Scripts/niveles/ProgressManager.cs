@@ -10,6 +10,7 @@ public class ProgressManager : MonoBehaviour
     public static ProgressManager Instance { get; private set; }
 
     private IProgressStore _store;
+    private RemoteProgressStore _remoto;
 
     /// <summary>Avisa cuando la nube trajo progreso nuevo, para que la UI se actualice.</summary>
     public event System.Action ProgresoActualizado;
@@ -22,11 +23,34 @@ public class ProgressManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
 
-        string testUserId = "6ae69f4cf3d30eec400e04e5";
-        
-        RemoteProgressStore store = new RemoteProgressStore(testUserId, this); // ← Guarda en local y sincroniza con la nube
-        store.ProgresoCambiado += () => ProgresoActualizado?.Invoke();
-        _store = store;
+        // Siempre guarda en local; solo sincroniza con la nube si hay una sesión iniciada.
+        // La cuenta se asigna en Start, cuando PlayerDataManager ya restauró la sesión guardada.
+        _remoto = new RemoteProgressStore(null, this);
+        _remoto.ProgresoCambiado += () => ProgresoActualizado?.Invoke();
+        _store = _remoto;
+    }
+
+    void Start()
+    {
+        if (PlayerDataManager.Instance == null)
+        {
+            Debug.LogWarning("ProgressManager: no hay PlayerDataManager en la escena; el progreso será solo local.");
+            return;
+        }
+
+        PlayerDataManager.Instance.UsuarioCambiado += AsignarUsuarioActual;
+        AsignarUsuarioActual();
+    }
+
+    void OnDestroy()
+    {
+        if (PlayerDataManager.Instance != null)
+            PlayerDataManager.Instance.UsuarioCambiado -= AsignarUsuarioActual;
+    }
+
+    void AsignarUsuarioActual()
+    {
+        _remoto?.CambiarUsuario(PlayerDataManager.Instance?.CurrentUserId);
     }
 
     public int ObtenerEstrellas(int nivel) => _store.ObtenerEstrellas(nivel);

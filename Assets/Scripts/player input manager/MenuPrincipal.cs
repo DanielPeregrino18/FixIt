@@ -177,9 +177,9 @@ public class MenuPrincipal : MonoBehaviour
 #endif
     }
 
-    /// <summary>Botón CONFIGURACIÓN — placeholder por ahora.</summary>
+    /// <summary>Botón CONFIGURACIÓN — abre el menú de cuenta y ajustes encima de este.</summary>
     public void Configuracion()
     {
-        Debug.Log("MenuPrincipal: Configuración aún no implementada.");
+        ConfiguracionMenu.Abrir(this);
     }
 }

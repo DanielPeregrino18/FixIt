@@ -209,6 +209,62 @@ public class AudioManager : MonoBehaviour
         _fuenteCafe = CrearFuenteMenu();
         _fuenteSoplido = CrearFuenteMenu();
         _fuenteInstalacion = CrearFuenteMenu();
+
+        // Los volúmenes del Inspector son la base; el menú de Configuración los escala
+        _baseMusica = volumenMusica;
+        _baseMenu = volumenMenu;
+        _baseHistorieta = volumenHistorieta;
+        _baseEfectos = volumenEfectos;
+        _baseInterfaz = volumenInterfaz;
+        _baseResultado = volumenSonidoResultado;
+        AplicarVolumenUsuario(AjustesJuego.VolumenMusica, AjustesJuego.VolumenEfectos);
+    }
+
+    // ── Volumen elegido por el usuario (menú de Configuración) ───────────────
+
+    private float _baseMusica, _baseMenu, _baseHistorieta, _baseEfectos, _baseInterfaz, _baseResultado;
+    private float _factorMusica = 1f;
+    private float _factorEfectos = 1f;
+
+    /// <summary>
+    /// Escala la música y los efectos (0 a 1) sobre los volúmenes del Inspector.
+    /// Lo que ya está sonando se ajusta al momento.
+    /// </summary>
+    public void AplicarVolumenUsuario(float musica, float efectos)
+    {
+        musica = Mathf.Clamp01(musica);
+        efectos = Mathf.Clamp01(efectos);
+
+        volumenMusica = _baseMusica * musica;
+        volumenMenu = _baseMenu * musica;
+        volumenHistorieta = _baseHistorieta * musica;
+        volumenEfectos = _baseEfectos * efectos;
+        volumenInterfaz = _baseInterfaz * efectos;
+        volumenSonidoResultado = _baseResultado * efectos;
+
+        // Música que ya suena o está en pausa (incluidos los cruces del loop): se reescala en
+        // proporción. No se mira isPlaying porque en la pausa del juego la música está en Pause().
+        AudioSource[] musicas = { _fuenteMusica, _menuA, _menuB, _histA, _histB };
+        foreach (AudioSource f in musicas)
+        {
+            if (f == null) continue;
+            if (_factorMusica > 0.0001f) f.volume *= musica / _factorMusica;
+            else if (f == _fuenteMusica) f.volume = volumenMusica;
+            else if (f == _menuA || f == _menuB) f.volume = volumenMenu;
+            else f.volume = volumenHistorieta;
+        }
+
+        // Efectos largos que suenan o quedaron en pausa (aire, extintor, llamas, café…)
+        AudioSource[] efectosLoop = { _fuenteAire, _fuenteAireExtremos, _fuenteExtintor, _fuenteExtintorExtremos,
+                                      _fuenteLlamas, _fuenteCafe, _fuenteSoplido, _fuenteInstalacion };
+        foreach (AudioSource f in efectosLoop)
+        {
+            if (f == null) continue;
+            if (_factorEfectos > 0.0001f) f.volume *= efectos / _factorEfectos;
+        }
+
+        _factorMusica = musica;
+        _factorEfectos = efectos;
     }
 
     // ── Instalar piezas ───────────────────────────────────────────────────────

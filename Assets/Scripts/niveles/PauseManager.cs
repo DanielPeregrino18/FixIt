@@ -20,6 +20,9 @@ public class PauseManager : MonoBehaviour
     [Header("Botones (en el orden en que quieres navegarlos)")]
     public GameObject botonReanudar;
     public GameObject botonReiniciar;
+    [Tooltip("Opcional. Si se deja vacío, se crea solo al iniciar copiando el botón Reiniciar. " +
+             "No hace falta conectarle el OnClick: el script lo hace.")]
+    public GameObject botonConfiguracion;
     public GameObject botonSalir;
 
     [Header("Consejos (se muestra uno distinto cada vez que pausas)")]
@@ -39,14 +42,87 @@ public class PauseManager : MonoBehaviour
     private int _indice = 0;
     private float _timerNav = 0f;
 
+    private bool _enConfiguracion = false;
+    private float _timerConfirmar = 0f; // evita que la tecla que cerró la configuración confirme otro botón aquí
+
     void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
 
+        if (botonConfiguracion == null) botonConfiguracion = CrearBotonConfiguracion();
+        if (botonConfiguracion != null)
+        {
+            Button b = botonConfiguracion.GetComponent<Button>();
+            if (b != null) b.onClick.AddListener(AbrirConfiguracion);
+        }
+
         if (botonReanudar != null) _botones.Add(botonReanudar);
         if (botonReiniciar != null) _botones.Add(botonReiniciar);
+        if (botonConfiguracion != null) _botones.Add(botonConfiguracion);
         if (botonSalir != null) _botones.Add(botonSalir);
+    }
+
+    /// <summary>
+    /// Crea el botón "Configuración" copiando el de Reiniciar y lo pone justo debajo.
+    /// El panel crece lo que mide el botón para que quepan todos.
+    /// </summary>
+    GameObject CrearBotonConfiguracion()
+    {
+        if (botonReiniciar == null) return null;
+
+        Transform padre = botonReiniciar.transform.parent;
+        GameObject copia = Instantiate(botonReiniciar, padre);
+        copia.name = "BotonConfiguracion";
+        copia.transform.SetSiblingIndex(botonReiniciar.transform.GetSiblingIndex() + 1);
+        copia.transform.localScale = Vector3.one;
+
+        // La copia trae el OnClick de Reiniciar configurado en el Inspector: se reemplaza entero
+        Button b = copia.GetComponent<Button>();
+        if (b != null) b.onClick = new Button.ButtonClickedEvent();
+
+        TMP_Text texto = copia.GetComponentInChildren<TMP_Text>(true);
+        TMP_Text original = botonReiniciar.GetComponentInChildren<TMP_Text>(true);
+        if (texto != null)
+        {
+            // Conserva los espacios iniciales que usan los otros botones para alinear el texto
+            string prefijo = "";
+            if (original != null)
+            {
+                string t = original.text;
+                int n = 0;
+                while (n < t.Length && t[n] == ' ') n++;
+                prefijo = t.Substring(0, n);
+            }
+            texto.text = prefijo + "Configuración";
+        }
+
+        RectTransform panel = padre as RectTransform;
+        RectTransform rb = botonReiniciar.transform as RectTransform;
+        if (panel != null && rb != null && panel.GetComponent<LayoutGroup>() != null)
+            panel.sizeDelta += new Vector2(0f, rb.rect.height);
+
+        return copia;
+    }
+
+    /// <summary>Botón "Configuración" de la pausa: sonido, pantalla y controles (sin cuenta).</summary>
+    public void AbrirConfiguracion()
+    {
+        if (_enConfiguracion) return;
+        _enConfiguracion = true;
+
+        Button plantilla = botonReiniciar != null ? botonReiniciar.GetComponent<Button>() : null;
+        ConfiguracionMenu.AbrirDesdePausa(plantilla, () =>
+        {
+            _enConfiguracion = false;
+            _timerConfirmar = 0.25f;
+        });
+    }
+
+    void CerrarConfiguracion()
+    {
+        if (_enConfiguracion) ConfiguracionMenu.CerrarPausa();
+        _enConfiguracion = false;
     }
 
     void Start()
@@ -61,7 +137,8 @@ public class PauseManager : MonoBehaviour
         // Con un tutorial en pantalla no se puede pausar (reanudar rompería el timeScale)
         if (TutorialManager.Activo || ComicManager.Activo) return;
 
-        if (_pausado) ActualizarNavegacion();
+        // Con la configuración abierta, ella maneja los controles (P / Start siguen reanudando)
+        if (_pausado && !_enConfiguracion) ActualizarNavegacion();
 
         bool presionado = false;
 
@@ -144,6 +221,7 @@ public class PauseManager : MonoBehaviour
 
     public void Reanudar()
     {
+        CerrarConfiguracion();
         _pausado = false;
         Time.timeScale = 1f;
         if (AudioManager.Instance != null) AudioManager.Instance.ReanudarMusica();
@@ -153,6 +231,7 @@ public class PauseManager : MonoBehaviour
     /// <summary>Botón "Reiniciar Nivel" de la pausa.</summary>
     public void ReiniciarNivel()
     {
+        CerrarConfiguracion();
         _pausado = false;
         if (canvasPausa != null) canvasPausa.SetActive(false);
 
@@ -163,6 +242,7 @@ public class PauseManager : MonoBehaviour
     /// <summary>Botón "Salir al Menú" de la pausa.</summary>
     public void SalirAlMenu()
     {
+        CerrarConfiguracion();
         _pausado = false;
         if (canvasPausa != null) canvasPausa.SetActive(false);
 
@@ -208,6 +288,12 @@ public class PauseManager : MonoBehaviour
             if (_indice != anterior) AudioManager.Navegar();
             ActualizarSeleccion();
             _timerNav = 0.2f;
+        }
+
+        if (_timerConfirmar > 0f)
+        {
+            _timerConfirmar -= Time.unscaledDeltaTime;
+            return;
         }
 
         bool confirmar = Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame;

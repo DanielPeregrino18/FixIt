@@ -12,7 +12,8 @@ public class RemoteProgressStore : IProgressStore
 {
     private const float SEGUNDOS_ENTRE_INTENTOS = 60f;
 
-    private readonly string _userId;
+    // null = sin sesión: se guarda solo en local y no se sincroniza
+    private string _userId;
     private readonly LocalProgressStore _local = new LocalProgressStore();
 
     // Empieza en true para comparar con la nube al abrir el juego: ahí se suben los
@@ -25,8 +26,22 @@ public class RemoteProgressStore : IProgressStore
 
     public RemoteProgressStore(string userId, MonoBehaviour coroutineRunner)
     {
-        _userId = userId;
+        _userId = string.IsNullOrEmpty(userId) ? null : userId;
         coroutineRunner.StartCoroutine(CicloDeSincronizacion());
+    }
+
+    /// <summary>
+    /// Cambia la cuenta con la que se sincroniza (null = sin sesión, solo local).
+    /// Al iniciar sesión se sincroniza de inmediato: el progreso local se suma a la cuenta.
+    /// </summary>
+    public void CambiarUsuario(string userId)
+    {
+        string nuevo = string.IsNullOrEmpty(userId) ? null : userId;
+        if (nuevo == _userId) return;
+
+        _userId = nuevo;
+        _pendiente = true;
+        _sincronizarYa = true;
     }
 
     public int ObtenerEstrellas(int nivel) => _local.ObtenerEstrellas(nivel);
@@ -56,7 +71,7 @@ public class RemoteProgressStore : IProgressStore
 
         while (true)
         {
-            if (_pendiente || SessionQueue.HayPendientes)
+            if (_userId != null && (_pendiente || SessionQueue.HayPendientes))
             {
                 _pendiente = false;
                 _sincronizarYa = false;
@@ -81,12 +96,16 @@ public class RemoteProgressStore : IProgressStore
             yield break;
         }
 
+        // Se fija la cuenta al empezar: si la sesión cambia a medio camino, no se mezclan cuentas
+        string userId = _userId;
+        if (userId == null) yield break;
+
         bool termino = false;
         bool fallo = false;
         UserProgress remoto = null;
 
         red.GetProgress(
-            userId: _userId,
+            userId: userId,
             onSuccess: (progress) =>
             {
                 remoto = progress;
@@ -125,7 +144,7 @@ public class RemoteProgressStore : IProgressStore
                 fallo = false;
 
                 red.UpdateProgress(
-                    userId: _userId,
+                    userId: userId,
                     worldId: ObtenerWorldIdParaNivel(nivel),
                     levelId: ObtenerLevelIdParaNivel(nivel),
                     score: 0,

@@ -80,3 +80,6 @@ crashlytics-build.properties
 
 # Archivo de solucion generado por Visual Studio
 *.slnx
+
+# Bocetos del asistente (visual companion)
+.superpowers/

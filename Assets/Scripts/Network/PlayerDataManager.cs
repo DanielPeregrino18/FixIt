@@ -12,6 +12,17 @@ public class PlayerDataManager : MonoBehaviour
     public User CurrentUser => currentUser;
     public UserProgress CurrentProgress => currentProgress;
 
+    /// <summary>True si hay una cuenta con sesión iniciada. Sin sesión, el juego guarda solo en local.</summary>
+    public bool HaySesion => !string.IsNullOrEmpty(CurrentUserId);
+
+    /// <summary>Se dispara al iniciar o cerrar sesión.</summary>
+    public event System.Action UsuarioCambiado;
+
+    // La sesión se recuerda entre ejecuciones (solo id, nombre y email; nunca la contraseña)
+    private const string KEY_SESION_ID = "FixIT_Sesion_Id";
+    private const string KEY_SESION_NOMBRE = "FixIT_Sesion_Nombre";
+    private const string KEY_SESION_EMAIL = "FixIT_Sesion_Email";
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -21,12 +32,55 @@ public class PlayerDataManager : MonoBehaviour
         }
         Instance = this;
         DontDestroyOnLoad(gameObject);
+
+        RestaurarSesionGuardada();
     }
 
-    public void SetCurrentUser(User user)
+    private void RestaurarSesionGuardada()
     {
+        string id = PlayerPrefs.GetString(KEY_SESION_ID, "");
+        if (string.IsNullOrEmpty(id)) return;
+
+        currentUser = new User
+        {
+            _id = id,
+            username = PlayerPrefs.GetString(KEY_SESION_NOMBRE, ""),
+            email = PlayerPrefs.GetString(KEY_SESION_EMAIL, "")
+        };
+        Debug.Log($"👤 Sesión restaurada: {currentUser.username}");
+    }
+
+    public void SetCurrentUser(User user) => IniciarSesion(user);
+
+    /// <summary>Guarda el usuario como sesión activa (también para la próxima vez que se abra el juego).</summary>
+    public void IniciarSesion(User user)
+    {
+        if (user == null || string.IsNullOrEmpty(user._id)) return;
+
         currentUser = user;
+        PlayerPrefs.SetString(KEY_SESION_ID, user._id);
+        PlayerPrefs.SetString(KEY_SESION_NOMBRE, user.username ?? "");
+        PlayerPrefs.SetString(KEY_SESION_EMAIL, user.email ?? "");
+        PlayerPrefs.Save();
+
         Debug.Log($"👤 Jugador establecido: {user.username}");
+        UsuarioCambiado?.Invoke();
+    }
+
+    /// <summary>Cierra la sesión. El progreso guardado en la PC se queda como progreso local.</summary>
+    public void CerrarSesion()
+    {
+        if (currentUser == null) return;
+
+        currentUser = null;
+        currentProgress = null;
+        PlayerPrefs.DeleteKey(KEY_SESION_ID);
+        PlayerPrefs.DeleteKey(KEY_SESION_NOMBRE);
+        PlayerPrefs.DeleteKey(KEY_SESION_EMAIL);
+        PlayerPrefs.Save();
+
+        Debug.Log("👤 Sesión cerrada: el juego sigue en local");
+        UsuarioCambiado?.Invoke();
     }
 
     public void SetProgress(UserProgress progress)
@@ -83,9 +137,5 @@ public class PlayerDataManager : MonoBehaviour
         Debug.Log($"📊 Progreso local actualizado: {worldId}/{levelId} - Score: {score}, Stars: {stars}");
     }
 
-    public void ClearData()
-    {
-        currentUser = null;
-        currentProgress = null;
-    }
+    public void ClearData() => CerrarSesion();
 }
