@@ -129,6 +129,20 @@ public class AudioManager : MonoBehaviour
     [Tooltip("Volumen propio de este sonido (se multiplica por Volumen Efectos). Bájalo si suena fuerte")]
     [Range(0f, 1f)] public float volumenInstalacion = 0.5f;
 
+    [Header("Lanzar piezas y extintor")]
+    [Tooltip("Una vez, cuando el jugador lanza una pieza o el extintor")]
+    public AudioClip sonidoLanzar;
+    [Tooltip("Volumen propio de este sonido (se multiplica por Volumen Efectos)")]
+    [Range(0f, 1f)] public float volumenLanzar = 0.7f;
+
+    [Header("Puertas corredizas")]
+    [Tooltip("Cuando la puerta empieza a abrirse")]
+    public AudioClip sonidoPuertaAbre;
+    [Tooltip("Cuando la puerta empieza a cerrarse")]
+    public AudioClip sonidoPuertaCierra;
+    [Tooltip("Volumen propio de estos sonidos (se multiplica por Volumen Efectos). Bájalo si cansa oírlo seguido")]
+    [Range(0f, 1f)] public float volumenPuerta = 0.5f;
+
     [Header("Volumen de efectos")]
     [Range(0f, 1f)] public float volumenEfectos = 1f;
 
@@ -465,6 +479,11 @@ public class AudioManager : MonoBehaviour
     public static void Expendedora() { if (Instance != null) Instance.ReproducirEfecto(Instance.sonidoExpendedora, Instance.volumenExpendedora); }
 
     public static void Golpe() { if (Instance != null) Instance.ReproducirEfecto(Instance.sonidoGolpe); }
+
+    public static void Lanzar() { if (Instance != null) Instance.ReproducirEfecto(Instance.sonidoLanzar, Instance.volumenLanzar); }
+
+    public static void PuertaAbre() { if (Instance != null) Instance.ReproducirEfecto(Instance.sonidoPuertaAbre, Instance.volumenPuerta); }
+    public static void PuertaCierra() { if (Instance != null) Instance.ReproducirEfecto(Instance.sonidoPuertaCierra, Instance.volumenPuerta); }
 
     void ReproducirEfecto(AudioClip clip, float escala = 1f)
     {

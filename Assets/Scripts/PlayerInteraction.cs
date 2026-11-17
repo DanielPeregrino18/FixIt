@@ -482,6 +482,7 @@ public class PlayerInteraction : MonoBehaviour
                       this, radioAtrapar, anguloAtrapar);
 
         _proximoLanzamiento = Time.time + esperaEntreLanzamientos;
+        AudioManager.Lanzar();
         RebotarJugador(-fuerzaReboteJugador * 1.3f); // estirón al lanzar
 
         ProceduralHead cabeza = GetComponent<ProceduralHead>();

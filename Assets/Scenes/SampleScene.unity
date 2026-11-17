@@ -11059,6 +11059,11 @@ MonoBehaviour:
   volumenExpendedora: 0.7
   sonidoInstalacion: {fileID: 8300000, guid: 883f45af52978ac48b56da747cffb081, type: 3}
   volumenInstalacion: 0.5
+  sonidoLanzar: {fileID: 8300000, guid: d634d1f2b3172b24aaa39fe083232d0f, type: 3}
+  volumenLanzar: 0.7
+  sonidoPuertaAbre: {fileID: 8300000, guid: c9dcfeeea39d79b47b1d7aec00460809, type: 3}
+  sonidoPuertaCierra: {fileID: 8300000, guid: 258de626ce7a22142adc69a46c53874c, type: 3}
+  volumenPuerta: 0.5
   volumenEfectos: 1
 --- !u!4 &466385438
 Transform:
@@ -19333,6 +19338,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WaveManager
   spawnPoint: {fileID: 1743271455}
   laptopPrefab: {fileID: 1792283286235629860, guid: 7506c2cd317f9994da777c9a47164366, type: 3}
+  multiplicadorPorJugadores:
+  - 1
+  - 1.8
+  - 2.3
+  - 2.6
   delayEntreHorda: 0.5
   maxPorRafaga: 3
   intervaloRafagas: 10

@@ -52,6 +52,7 @@ public class PuertaCorrediza : MonoBehaviour
     private Vector3 _desplazamiento; // de cerrada a abierta, en el espacio del padre
     private float _apertura;       // 0 = cerrada, 1 = abierta
     private float _tiempoSinNadie;
+    private bool _abriendo;        // hacia dónde va ahora (para sonar solo al cambiar de dirección)
     private readonly Collider[] _buffer = new Collider[32];
 
     /// <summary>¿Puede abrirse en el nivel actual?</summary>
@@ -114,6 +115,14 @@ public class PuertaCorrediza : MonoBehaviour
         // Nunca cerrarse encima de un objeto suelto que quedó en el umbral
         if (!abrir && _apertura > 0f && HayObjetoEnElUmbral()) abrir = true;
 
+        // Sonido solo cuando cambia de dirección (empieza a abrirse o a cerrarse)
+        if (abrir != _abriendo)
+        {
+            _abriendo = abrir;
+            if (abrir) AudioManager.PuertaAbre();
+            else AudioManager.PuertaCierra();
+        }
+
         float objetivo = abrir ? 1f : 0f;
         float velocidad = 1f / Mathf.Max(0.05f, abrir ? tiempoAbrir : tiempoCerrar);
         _apertura = Mathf.MoveTowards(_apertura, objetivo, velocidad * Time.fixedDeltaTime);
@@ -133,6 +142,7 @@ public class PuertaCorrediza : MonoBehaviour
     void CerrarAlInstante()
     {
         _apertura = 0f;
+        _abriendo = false;
         _tiempoSinNadie = esperaAntesDeCerrar;
         transform.localPosition = _posCerrada;
         if (_rb != null) _rb.position = transform.position;
