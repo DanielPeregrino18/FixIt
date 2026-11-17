@@ -123,6 +123,9 @@ public class Server : MonoBehaviour, IExtinguishable
     // IExtinguishable
     // ═══════════════════════════════════════════════════════════════════════
 
+    /// <summary>Sin incendio programado ni en curso (supervivencia elige entre estos).</summary>
+    public bool EstaLibre => !activarIncendio && _estado == EstadoServidor.Normal;
+
     public bool EstaEnPeligro() =>
         _estado == EstadoServidor.Advertencia || _estado == EstadoServidor.EnLlamas;
 

@@ -25,6 +25,16 @@ public class GameManager : MonoBehaviour
     [Tooltip("Máximo de laptops perdidas antes de Game Over")]
     public int maxLaptopsPermitidas = 6;
 
+    [Header("Supervivencia")]
+    [Tooltip("Cada cuántas laptops entregadas bien se recupera una vida (se resta una perdida). 0 = nunca")]
+    public int entregasParaRecuperarVida = 5;
+    [Tooltip("Cada cuántos segundos se anuncia una fase nueva en el HUD")]
+    public float segundosPorFase = 120f;
+    [Tooltip("Color del texto de récord cuando lo superas durante la partida")]
+    public Color colorRecordSuperado = new Color(1f, 0.78f, 0.1f, 1f);
+    [Tooltip("Cuánto sube el texto del tiempo en resultados (ocupa el lugar de las estrellas)")]
+    public float subirTiempoResultados = 11f;
+
     [Header("Mecánica de Incendios")]
     [Tooltip("Activa o desactiva el sistema de incendios para este nivel")]
     public bool incendiosActivos = false;
@@ -183,6 +193,23 @@ public class GameManager : MonoBehaviour
     public float retrasoFinAnticipado = 1f;
     private int _piezasDesperdiciadas = 0;
 
+    // ── Supervivencia ─────────────────────────────────────────────────────────
+    private static bool Supervivencia => ModoSupervivencia.Activo;
+    private int _entregasHaciaVida = 0;      // entregas buenas desde la última vida recuperada
+    private bool _popPorVidaRecuperada = false;
+    private int _jugadoresPartida = 1;
+    private float _recordAnterior = 0f;      // récord con esta cantidad de jugadores al empezar
+    private bool _recordSuperado = false;
+    private bool _esRecordNuevo = false;
+    private float _tiempoSupervivencia = 0f; // lo que duró la partida (para resultados)
+    private int _faseActual = 1;
+    private float _timerAvisoFase = 0f;
+    private TextMeshProUGUI _textoRecord;    // se crea copiando el reloj
+    private Color _colorBaseRecord = Color.white;
+    private Coroutine _popRecord;
+    private Vector2 _posBaseScore;
+    private bool _posBaseScoreCapturada = false;
+
     /// <summary>Por qué terminó un Game Over (para elegir el chiste de los resultados).</summary>
     public enum CausaDerrota { LaptopsPerdidas, Servidor }
 
@@ -255,6 +282,15 @@ public class GameManager : MonoBehaviour
         if (!_nivelActivo) return;
 
         _timerActual += Time.deltaTime;
+
+        // Supervivencia: el reloj cuenta hacia arriba y no hay final por tiempo
+        if (Supervivencia)
+        {
+            ActualizarReloj(0f);
+            ActualizarHudSupervivencia();
+            return;
+        }
+
         float progreso = Mathf.Clamp01(_timerActual / duracionNivel);
 
         // Actualizar barra
@@ -298,6 +334,17 @@ public class GameManager : MonoBehaviour
         if (_corrutinaFinAnticipado != null) { StopCoroutine(_corrutinaFinAnticipado); _corrutinaFinAnticipado = null; }
         _piezasDesperdiciadas = 0;
         _huboIncendioServidor = false;
+
+        _entregasHaciaVida = 0;
+        _jugadoresPartida = LobbyManager.Instance != null ? Mathf.Max(1, LobbyManager.Instance.CantidadJugadores()) : 1;
+        _recordAnterior = ModoSupervivencia.Record(_jugadoresPartida);
+        _recordSuperado = false;
+        _esRecordNuevo = false;
+        _tiempoSupervivencia = 0f;
+        _faseActual = 1;
+        _timerAvisoFase = 0f;
+        ConfigurarHudSegunModo();
+
         _nivelActivo = true;
         _nivelActualNumero = numeroNivel;
         ActualizarDia();
@@ -307,7 +354,7 @@ public class GameManager : MonoBehaviour
 
         ActualizarUI();
         ActualizarReloj(0f);
-        if (barraProgreso != null) barraProgreso.fillAmount = 0f;
+        if (barraProgreso != null) barraProgreso.fillAmount = Supervivencia ? 1f : 0f; // supervivencia: barra llena
 
         // NUEVO: desbloquear movimiento por si venía de un TerminarNivel/GameOver anterior
         PlayerMovement[] movs = FindObjectsByType<PlayerMovement>();
@@ -355,6 +402,20 @@ public class GameManager : MonoBehaviour
     {
         if (!_nivelActivo) return;
         _laptopsEntregadas++;
+
+        // Supervivencia: cada N entregas buenas se recupera una vida (solo cuenta si hay perdidas)
+        if (Supervivencia && entregasParaRecuperarVida > 0 && _laptopsPerdidas > 0)
+        {
+            _entregasHaciaVida++;
+            if (_entregasHaciaVida >= entregasParaRecuperarVida)
+            {
+                _entregasHaciaVida = 0;
+                _laptopsPerdidas--;
+                _popPorVidaRecuperada = true;
+                Debug.Log($"GameManager: ¡Vida recuperada! Perdidas: {_laptopsPerdidas}/{maxLaptopsPermitidas}");
+            }
+        }
+
         ActualizarUI();
         Debug.Log($"GameManager: Laptop entregada. Total: {_laptopsEntregadas}");
         RevisarFinAnticipado();
@@ -439,6 +500,13 @@ public class GameManager : MonoBehaviour
     void ActualizarReloj(float progreso)
     {
         if (textoHora == null) return;
+
+        // Supervivencia: tiempo que llevas aguantando
+        if (Supervivencia)
+        {
+            textoHora.text = ModoSupervivencia.Formato(_timerActual);
+            return;
+        }
 
         // Interpolar entre 8:00 y 16:00 según el progreso
         float horasTotales = HORA_FIN - HORA_INICIO; // 8 horas
@@ -526,6 +594,8 @@ public class GameManager : MonoBehaviour
 
     void GameOver(string motivo, CausaDerrota causa = CausaDerrota.LaptopsPerdidas)
     {
+        if (Supervivencia) { TerminarSupervivencia(motivo, causa); return; }
+
         _nivelActivo = false;
         if (AudioManager.Instance != null) AudioManager.Instance.DetenerMusicaConFundido();
         Time.timeScale = 0f;
@@ -538,6 +608,26 @@ public class GameManager : MonoBehaviour
 
         RegistrarPartida(0, 0, completada: false);
         MostrarResultados(0, true, motivo, 0, causa);
+    }
+
+    /// <summary>
+    /// Fin de una partida de supervivencia (6 perdidas o servidor explotado): se guarda el récord
+    /// local y se muestra la pantalla de resultados de victoria, con el tiempo en lugar del score.
+    /// </summary>
+    void TerminarSupervivencia(string motivo, CausaDerrota causa)
+    {
+        _nivelActivo = false;
+        if (AudioManager.Instance != null) AudioManager.Instance.DetenerMusicaConFundido();
+        Time.timeScale = 0f;
+        BloquearJugadores();
+        LimpiarLaptopsSinEntregar(contarComoPerdidas: false);
+
+        _tiempoSupervivencia = _timerActual;
+        _esRecordNuevo = ModoSupervivencia.GuardarSiEsRecord(_jugadoresPartida, _tiempoSupervivencia);
+        Debug.Log($"GameManager: Supervivencia terminada ({motivo}) — {ModoSupervivencia.Formato(_tiempoSupervivencia)} " +
+                  $"con {_jugadoresPartida} jugador(es){(_esRecordNuevo ? ", ¡récord nuevo!" : "")}");
+
+        MostrarResultados(0, false, motivo, 0, causa);
     }
 
     /// <summary>
@@ -662,7 +752,15 @@ public class GameManager : MonoBehaviour
 
         ScoreFinal = esGameOver ? 0 : score;
         _scoreMostrado = ScoreFinal;
-        if (textoScore != null) textoScore.text = string.Format(formatoScore, 0);
+        if (textoScore != null)
+        {
+            textoScore.text = TextoScore(0f);
+
+            // En supervivencia no hay estrellas: el tiempo sube a ocupar su lugar
+            RectTransform rs = (RectTransform)textoScore.transform;
+            if (!_posBaseScoreCapturada) { _posBaseScore = rs.anchoredPosition; _posBaseScoreCapturada = true; }
+            rs.anchoredPosition = _posBaseScore + (Supervivencia ? Vector2.up * subirTiempoResultados : Vector2.zero);
+        }
 
         if (pantallaResultados == null) return;
         pantallaResultados.SetActive(true);
@@ -672,7 +770,9 @@ public class GameManager : MonoBehaviour
 
         if (textoResultado != null)
         {
-            if (esGameOver)
+            if (Supervivencia)
+                textoResultado.text = $"Supervivencia - {_jugadoresPartida} jugador{(_jugadoresPartida > 1 ? "es" : "")}";
+            else if (esGameOver)
                 textoResultado.text = string.IsNullOrEmpty(motivo) ? "GAME OVER" : $"GAME OVER\n{motivo}";
             else
                 textoResultado.text = "¡Turno completado!";
@@ -693,7 +793,7 @@ public class GameManager : MonoBehaviour
             for (int i = 0; i < estrellas.Length; i++)
             {
                 if (estrellas[i] == null) continue;
-                estrellas[i].SetActive(true);
+                estrellas[i].SetActive(!Supervivencia); // en supervivencia no hay estrellas
                 Image imgEstrella = estrellas[i].GetComponent<Image>();
                 if (imgEstrella == null) continue;
                 Sprite s = (i < estrellasGanadas) ? spriteEstrellaLlena : spriteEstrellaVacia;
@@ -731,6 +831,9 @@ public class GameManager : MonoBehaviour
             textoMensaje.text = (pool != null && pool.Length > 0)
                 ? pool[Random.Range(0, pool.Length)]
                 : "";
+
+            // Supervivencia: en lugar del chiste, cómo te fue contra tu récord
+            if (Supervivencia) textoMensaje.text = MensajeRecord();
         }
 
         // Conectar los botones cada vez que se muestra la pantalla
@@ -893,7 +996,7 @@ public class GameManager : MonoBehaviour
                 textoScore.alpha = Progreso(t, tScoreIni, 0.15f);
                 textoScore.transform.localScale = _escalaBaseScore *
                     EaseOutBack(Progreso(t, tScoreIni, 0.25f));
-                textoScore.text = string.Format(formatoScore, Mathf.RoundToInt(_scoreMostrado * ps));
+                textoScore.text = TextoScore(ps);
             }
 
             // Botones: fade + subida
@@ -921,7 +1024,7 @@ public class GameManager : MonoBehaviour
         {
             textoScore.alpha = 1f;
             textoScore.transform.localScale = _escalaBaseScore;
-            textoScore.text = string.Format(formatoScore, _scoreMostrado);
+            textoScore.text = TextoScore(1f);
         }
         for (int i = 0; i < nEstrellas; i++)
             if (estrellas[i] != null) estrellas[i].transform.localScale = _escalaBaseEstrellas[i];
@@ -1050,7 +1153,8 @@ public class GameManager : MonoBehaviour
     /// <summary>La canción del nivel arranca (o se reinicia) desde el principio.</summary>
     public void ArrancarMusicaNivel()
     {
-        if (AudioManager.Instance != null) AudioManager.Instance.IniciarMusicaNivel(duracionNivel);
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.IniciarMusicaNivel(Supervivencia ? 0f : duracionNivel, forzarRepetir: Supervivencia);
     }
 
     /// <summary>Vuelve a cargar el mismo nivel que se acaba de jugar. Pública para el botón de Reintentar y la Pausa.</summary>
@@ -1059,6 +1163,12 @@ public class GameManager : MonoBehaviour
         Time.timeScale = 1f;
         DetenerSecuenciaResultados();
         pantallaResultados.SetActive(false);
+
+        if (Supervivencia)
+        {
+            WaveManager.Instance.IniciarSupervivencia(esReintento: true);
+            return;
+        }
 
         int nivel = _nivelActualNumero;
         if (nivel <= 0) return;
@@ -1183,12 +1293,118 @@ public class GameManager : MonoBehaviour
                            (maxLaptopsPermitidas - _laptopsPerdidas) <= avisoPeligroFaltan;
             textoLaptopsPerdidas.color = peligro ? colorPeligroPerdidas : _colorBasePerdidas;
 
-            if (_laptopsPerdidas > _ultimoPerdidasUI)
+            if (_laptopsPerdidas > _ultimoPerdidasUI || _popPorVidaRecuperada)
                 HacerPopContador(textoLaptopsPerdidas.transform, ref _popPerdidas);
+            _popPorVidaRecuperada = false;
         }
 
         _ultimoEntregadasUI = _laptopsEntregadas;
         _ultimoPerdidasUI = _laptopsPerdidas;
+    }
+
+    // ── Supervivencia: HUD y resultados ───────────────────────────────────────
+
+    /// <summary>Muestra u oculta las partes del HUD que cambian entre niveles y supervivencia.</summary>
+    void ConfigurarHudSegunModo()
+    {
+        bool s = Supervivencia;
+
+        // El día del calendario no aplica en supervivencia (la barra se queda llena, ver IniciarNivel)
+        if (textoDia != null && textoDia.transform.parent != null)
+            textoDia.transform.parent.gameObject.SetActive(!s);
+
+        if (s) CrearTextoRecord();
+        if (_textoRecord != null)
+        {
+            _textoRecord.gameObject.SetActive(s);
+            if (s) MostrarRecordEnHud();
+        }
+    }
+
+    /// <summary>El texto de récord se crea copiando el reloj y se coloca justo debajo.</summary>
+    void CrearTextoRecord()
+    {
+        if (_textoRecord != null || textoHora == null) return;
+
+        _textoRecord = Instantiate(textoHora, textoHora.transform.parent);
+        _textoRecord.name = "TextoRecordSupervivencia";
+        RectTransform rt = (RectTransform)_textoRecord.transform;
+        RectTransform orig = (RectTransform)textoHora.transform;
+        rt.anchoredPosition = orig.anchoredPosition + Vector2.down * (orig.rect.height * 0.62f);
+        rt.localScale = Vector3.one;
+
+        _textoRecord.enableAutoSizing = false;
+        _textoRecord.fontSize = textoHora.fontSize * 0.55f;
+        _textoRecord.enableWordWrapping = false;
+        _textoRecord.overflowMode = TextOverflowModes.Overflow;
+        _colorBaseRecord = textoHora.color;
+    }
+
+    void MostrarRecordEnHud()
+    {
+        if (_textoRecord == null) return;
+
+        if (_recordSuperado)
+        {
+            _textoRecord.text = "¡Nuevo récord!";
+            _textoRecord.color = colorRecordSuperado;
+        }
+        else
+        {
+            _textoRecord.text = _recordAnterior > 0f
+                ? $"Récord: {ModoSupervivencia.Formato(_recordAnterior)}"
+                : "Récord: --:--";
+            _textoRecord.color = _colorBaseRecord;
+        }
+    }
+
+    /// <summary>Cada frame en supervivencia: superar el récord y anunciar fases.</summary>
+    void ActualizarHudSupervivencia()
+    {
+        if (_textoRecord == null) return;
+
+        if (!_recordSuperado && _recordAnterior > 0f && _timerActual > _recordAnterior)
+        {
+            _recordSuperado = true;
+            if (_timerAvisoFase <= 0f) MostrarRecordEnHud();
+            HacerPopContador(_textoRecord.transform, ref _popRecord);
+            AudioManager.Confirmar();
+        }
+
+        int fase = 1 + Mathf.FloorToInt(_timerActual / Mathf.Max(10f, segundosPorFase));
+        if (fase > _faseActual)
+        {
+            _faseActual = fase;
+            _timerAvisoFase = 2.5f;
+            _textoRecord.text = $"¡Fase {fase}!";
+            _textoRecord.color = colorPeligroPerdidas;
+            HacerPopContador(_textoRecord.transform, ref _popRecord);
+            AudioManager.CambioPersonaje();
+        }
+
+        if (_timerAvisoFase > 0f)
+        {
+            _timerAvisoFase -= Time.deltaTime;
+            if (_timerAvisoFase <= 0f) MostrarRecordEnHud();
+        }
+    }
+
+    /// <summary>Texto del score en resultados; en supervivencia es el tiempo que duraste.</summary>
+    string TextoScore(float progreso)
+    {
+        if (Supervivencia) return "Tiempo: " + ModoSupervivencia.Formato(_tiempoSupervivencia * progreso);
+        return string.Format(formatoScore, Mathf.RoundToInt(_scoreMostrado * progreso));
+    }
+
+    string MensajeRecord()
+    {
+        if (_esRecordNuevo)
+            return _recordAnterior > 0f
+                ? $"¡Nuevo récord! Superaste tu marca de {ModoSupervivencia.Formato(_recordAnterior)}."
+                : "¡Primer récord registrado! A ver quién lo supera.";
+
+        float falta = Mathf.Max(0f, _recordAnterior - _tiempoSupervivencia);
+        return $"Te faltaron {ModoSupervivencia.Formato(falta)} para tu récord ({ModoSupervivencia.Formato(_recordAnterior)}).";
     }
 
     void HacerPopContador(Transform objetivo, ref Coroutine rutina)

@@ -34,6 +34,48 @@ public class WaveManager : MonoBehaviour
     [Tooltip("Intervalo entre ráfagas para oleadas del tramo final")]
     public float intervaloRafagasFinal = 5f;
 
+    [Header("Supervivencia — oleadas")]
+    [Tooltip("Multiplica qué tan rápido sube la dificultad (1 = normal, 1.5 = 50% más rápido)")]
+    public float velocidadDificultad = 1f;
+    [Tooltip("Segundo en que sale la primera laptop")]
+    public float primeraOleadaSupervivencia = 3f;
+    [Tooltip("Segundos entre oleadas al empezar")]
+    public float intervaloOleadaInicial = 24f;
+    [Tooltip("Segundos entre oleadas cuando ya va muy avanzado (nunca baja de aquí)")]
+    public float intervaloOleadaMinimo = 13f;
+    [Tooltip("Qué tan rápido se acerca el intervalo al mínimo (segundos; más grande = más lento)")]
+    public float suavidadIntervalo = 420f;
+    [Tooltip("Laptops por oleada (con 1 jugador) al empezar")]
+    public int laptopsPorOleadaInicial = 1;
+    [Tooltip("Segundos que tarda en sumarse una laptop más por oleada. Crece poco a poco (las fracciones se " +
+             "acumulan entre oleadas), no de golpe")]
+    public float segundosPorLaptopExtra = 240f;
+    [Tooltip("Máximo de laptops por oleada (con 1 jugador; luego se multiplica por jugadores)")]
+    public int laptopsPorOleadaMaximo = 3;
+    [Tooltip("A partir de este segundo las laptops pueden incendiarse")]
+    public float segundoIncendiosLaptops = 90f;
+
+    [Header("Supervivencia — respiros")]
+    [Tooltip("A partir de este segundo, de vez en cuando hay un rato sin laptops para recuperarse")]
+    public float segundoInicioRespiros = 300f;
+    [Tooltip("Cada cuántas oleadas hay un respiro (mínimo y máximo, se elige al azar)")]
+    public int oleadasEntreRespirosMin = 3;
+    public int oleadasEntreRespirosMax = 5;
+    [Tooltip("Segundos extra sin laptops que dura cada respiro")]
+    public float duracionRespiro = 25f;
+
+    [Header("Supervivencia — servidores")]
+    [Tooltip("Segundo del primer incendio de servidor")]
+    public float primerServidorSupervivencia = 120f;
+    [Tooltip("Segundos entre incendios de servidor al principio")]
+    public float intervaloServidorInicial = 120f;
+    [Tooltip("Cuánto se acorta el intervalo con cada incendio")]
+    public float reduccionIntervaloServidor = 12f;
+    [Tooltip("Intervalo mínimo entre incendios de servidor")]
+    public float intervaloServidorMinimo = 50f;
+    [Tooltip("A partir de este segundo se incendian dos servidores a la vez")]
+    public float segundoServidoresDobles = 720f;
+
     [Header("Materiales de color (uno por laptop)")]
     public Material[] materialesColor;
 
@@ -133,13 +175,153 @@ public class WaveManager : MonoBehaviour
                 if (o.laptops != null)
                     foreach (string tipo in o.laptops)
                         if (tipo != "facil") hayPiezasOIncendios = true;
+        if (ModoSupervivencia.Activo) { hayServidores = true; hayPiezasOIncendios = true; }
         PuertaCorrediza.ConfigurarNivel(hayServidores, hayPiezasOIncendios);
 
-        StartCoroutine(EjecutarOleadas());
+        StartCoroutine(ModoSupervivencia.Activo ? EjecutarSupervivencia() : EjecutarOleadas());
 
         // De negro a la escena (tiempo real, funciona aunque el tutorial congele el juego).
         // Si hay historieta de inicio, el aclarado lo hace ella al cerrarse.
         if (!ComicManager.Activo && FundidoPantalla.Instance != null) FundidoPantalla.Instance.Aclarar();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Supervivencia
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// <summary>Inicia (o reinicia) una partida de supervivencia: sin JSON, las oleadas se generan solas.</summary>
+    public void IniciarSupervivencia(bool esReintento = false)
+    {
+        ModoSupervivencia.Activo = true;
+        NivelData datos = new NivelData
+        {
+            nivel = 0, // sin número: sin historietas, tutorial, progreso ni envío al backend
+            incendios = false,
+            servidores = new List<ServidorData>(),
+            oleadas = new List<OleadaData>()
+        };
+        IniciarNivel(datos, esReintento);
+    }
+
+    IEnumerator EjecutarSupervivencia()
+    {
+        int jugadores = 1;
+        if (LobbyManager.Instance != null)
+            jugadores = Mathf.Max(1, LobbyManager.Instance.CantidadJugadores());
+        float mult = Multiplicador(jugadores);
+
+        Debug.Log($"WaveManager: Supervivencia iniciada con {jugadores} jugador(es), multiplicador ×{mult}.");
+
+        float proximaOleada = primeraOleadaSupervivencia;
+        float proximoServidor = primerServidorSupervivencia;
+        int incendiosServidor = 0;
+        float arrastre = 0f;
+        int oleadasHastaRespiro = Random.Range(oleadasEntreRespirosMin, oleadasEntreRespirosMax + 1);
+
+        while (true)
+        {
+            // El reloj del GameManager (se detiene en pausa y al terminar)
+            float t = GameManager.Instance != null ? GameManager.Instance.TiempoTranscurrido : 0f;
+            float tDif = t * Mathf.Max(0.1f, velocidadDificultad);
+
+            if (GameManager.Instance != null)
+                GameManager.Instance.incendiosActivos = tDif >= segundoIncendiosLaptops;
+
+            // ── Oleada ────────────────────────────────────────────────────────
+            if (t >= proximaOleada)
+            {
+                // Crece de forma continua (1 → 1.6 → 2.2 …): la fracción se arrastra a la siguiente oleada
+                float baseOleada = Mathf.Min(laptopsPorOleadaMaximo,
+                    laptopsPorOleadaInicial + tDif / Mathf.Max(1f, segundosPorLaptopExtra));
+                float exacto = baseOleada * mult + arrastre;
+                int cantidad = Mathf.Max(1, Mathf.FloorToInt(exacto + 0.0001f));
+                arrastre = Mathf.Max(0f, exacto - cantidad);
+
+                List<string> lista = new List<string>();
+                for (int i = 0; i < cantidad; i++) lista.Add(ElegirTipoSupervivencia(tDif));
+
+                OleadaData oleada = new OleadaData { segundo = t, laptops = lista };
+                StartCoroutine(EjecutarOleadaEscalada(oleada, jugadores));
+
+                float intervalo = intervaloOleadaMinimo +
+                    (intervaloOleadaInicial - intervaloOleadaMinimo) * Mathf.Exp(-tDif / Mathf.Max(1f, suavidadIntervalo));
+                proximaOleada = t + intervalo;
+
+                // Respiro: cada pocas oleadas, un rato sin laptops para poder recuperarse
+                if (tDif >= segundoInicioRespiros && --oleadasHastaRespiro <= 0)
+                {
+                    proximaOleada += duracionRespiro;
+                    oleadasHastaRespiro = Random.Range(oleadasEntreRespirosMin, oleadasEntreRespirosMax + 1);
+                    Debug.Log($"WaveManager: respiro de {duracionRespiro}s (sig. oleada en el seg {proximaOleada:0}).");
+                }
+            }
+
+            // ── Incendio de servidor ──────────────────────────────────────────
+            if (t >= proximoServidor)
+            {
+                int cuantos = tDif >= segundoServidoresDobles ? 2 : 1;
+                for (int i = 0; i < cuantos; i++)
+                    if (IncendiarServidorLibre()) incendiosServidor++;
+
+                proximoServidor = t + Mathf.Max(intervaloServidorMinimo,
+                    intervaloServidorInicial - reduccionIntervaloServidor * incendiosServidor);
+            }
+
+            yield return null;
+        }
+    }
+
+    // Probabilidad de cada tipo según el minuto (con la velocidad de dificultad aplicada).
+    // Columnas: minuto, fácil, media, difícil, muy difícil. Entre filas se interpola.
+    private static readonly float[,] _tablaTipos = {
+        // 0-1.5 min: calentamiento | 1.5-5 min: ritmo bueno y parejo | 5+ min: se complica
+        { 0.0f, 1.00f, 0.00f, 0.00f, 0.00f },
+        { 1.0f, 1.00f, 0.00f, 0.00f, 0.00f },
+        { 1.5f, 0.65f, 0.35f, 0.00f, 0.00f },
+        { 3.0f, 0.40f, 0.45f, 0.15f, 0.00f },
+        { 5.0f, 0.20f, 0.50f, 0.30f, 0.00f },
+        { 7.0f, 0.05f, 0.50f, 0.35f, 0.10f },
+        {10.0f, 0.00f, 0.35f, 0.45f, 0.20f },
+        {15.0f, 0.00f, 0.25f, 0.45f, 0.30f },
+    };
+    private static readonly string[] _nombresTipos = { "facil", "media", "dificil", "muy_dificil" };
+
+    string ElegirTipoSupervivencia(float segundos)
+    {
+        float min = segundos / 60f;
+        int filas = _tablaTipos.GetLength(0);
+        int a = filas - 1, b = filas - 1;
+        for (int i = 0; i < filas - 1; i++)
+            if (min < _tablaTipos[i + 1, 0]) { a = i; b = i + 1; break; }
+
+        float k = a == b ? 0f : Mathf.InverseLerp(_tablaTipos[a, 0], _tablaTipos[b, 0], min);
+        float[] pesos = new float[4];
+        float suma = 0f;
+        for (int j = 0; j < 4; j++)
+        {
+            pesos[j] = Mathf.Lerp(_tablaTipos[a, j + 1], _tablaTipos[b, j + 1], k);
+            suma += pesos[j];
+        }
+
+        float r = Random.value * suma;
+        for (int j = 0; j < 4; j++)
+        {
+            if (r < pesos[j]) return _nombresTipos[j];
+            r -= pesos[j];
+        }
+        return "facil";
+    }
+
+    /// <summary>Incendia un servidor al azar de los que están tranquilos. False si no hay ninguno libre.</summary>
+    bool IncendiarServidorLibre()
+    {
+        List<Server> libres = new List<Server>();
+        foreach (Server s in FindObjectsByType<Server>())
+            if (s != null && s.EstaLibre) libres.Add(s);
+        if (libres.Count == 0) return false;
+
+        libres[Random.Range(0, libres.Count)].ProgramarIncendio(0.1f);
+        return true;
     }
 
     IEnumerator EjecutarOleadas()

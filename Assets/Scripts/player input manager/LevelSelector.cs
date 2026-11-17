@@ -28,4 +28,16 @@ public class LevelSelector : MonoBehaviour
         else
             Debug.LogError($"LevelSelector: No se pudo cargar el nivel {numeroNivel}.");
     }
+
+    /// <summary>Arranca el modo Supervivencia (desde el lobby, sin pasar por el calendario).</summary>
+    public void IniciarSupervivencia()
+    {
+        GameFlowManager.Instance.MostrarJuego();
+
+        PlayerJoinHandler[] jugadores = FindObjectsByType<PlayerJoinHandler>();
+        foreach (PlayerJoinHandler j in jugadores)
+            j.ActivarModoJuego(true, hudsJugadores);
+
+        WaveManager.Instance.IniciarSupervivencia();
+    }
 }

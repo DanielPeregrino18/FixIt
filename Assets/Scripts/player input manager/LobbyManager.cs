@@ -202,6 +202,19 @@ public class LobbyManager : MonoBehaviour
             if (!secciones[kvp.Key - 1].EstaListo()) return;
 
         Debug.Log("LobbyManager: ¡Todos listos!");
+
+        // Supervivencia: no hay calendario, se arranca directo
+        if (ModoSupervivencia.Activo)
+        {
+            LevelSelector selector = FindAnyObjectByType<LevelSelector>(FindObjectsInactive.Include);
+            if (selector != null)
+            {
+                selector.IniciarSupervivencia();
+                return;
+            }
+            Debug.LogWarning("LobbyManager: no se encontró LevelSelector para iniciar la supervivencia.");
+        }
+
         GameFlowManager.Instance.MostrarSeleccionNivel();
     }
 

@@ -763,7 +763,7 @@ public class AudioManager : MonoBehaviour
 
     /// <summary>Arranca la canción desde el principio. Llamar al empezar o reiniciar un nivel.</summary>
     /// <param name="duracionNivel">Duración del nivel en segundos, para que la canción termine a la vez.</param>
-    public void IniciarMusicaNivel(float duracionNivel = 0f)
+    public void IniciarMusicaNivel(float duracionNivel = 0f, bool forzarRepetir = false)
     {
         // Si venía sonando la música de historieta/tutorial, baja con un fundido
         DetenerMusicaHistorieta(true);
@@ -779,7 +779,7 @@ public class AudioManager : MonoBehaviour
 
         _fuenteMusica.Stop();
         _fuenteMusica.clip = musicaNivel;
-        _fuenteMusica.loop = repetir;
+        _fuenteMusica.loop = repetir || forzarRepetir; // supervivencia no tiene final: la canción se repite
         _fuenteMusica.volume = volumenMusica;
         _fuenteMusica.time = 0f;
 

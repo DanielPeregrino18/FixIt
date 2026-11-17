@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
+using TMPro;
 
 /// <summary>
 /// Menú principal: botones (Jugar / Configuración / Salir) con navegación
@@ -30,6 +31,11 @@ public class MenuPrincipal : MonoBehaviour
     private bool _hoverConfigurado = false;
 
     // ─────────────────────────────────────────────────────────────────────────
+
+    void Awake()
+    {
+        CrearBotonSupervivencia();
+    }
 
     void OnEnable()
     {
@@ -157,11 +163,73 @@ public class MenuPrincipal : MonoBehaviour
         }
     }
 
+    // ── Botón Supervivencia (se crea por código copiando el de Jugar) ────────
+
+    /// <summary>Copia el botón Jugar, lo pone justo debajo con el texto "Supervivencia" y lo agrega a la navegación.</summary>
+    void CrearBotonSupervivencia()
+    {
+        if (botonesMenu == null || botonesMenu.Length == 0 || botonesMenu[0] == null) return;
+        foreach (Button b in botonesMenu)
+            if (b != null && b.name == "BotonSupervivencia") return; // ya existe
+
+        Button jugar = botonesMenu[0];
+        Transform padre = jugar.transform.parent;
+        GameObject copia = Instantiate(jugar.gameObject, padre);
+        copia.name = "BotonSupervivencia";
+        copia.transform.SetSiblingIndex(jugar.transform.GetSiblingIndex() + 1);
+        copia.transform.localScale = Vector3.one;
+
+        // La copia trae el OnClick de Jugar configurado en el Inspector: se reemplaza entero
+        Button boton = copia.GetComponent<Button>();
+        boton.onClick = new Button.ButtonClickedEvent();
+        boton.onClick.AddListener(JugarSupervivencia);
+
+        // Si el original ya tenía el hover del mouse, la copia lo trae duplicado: se quita
+        EventTrigger trigger = copia.GetComponent<EventTrigger>();
+        if (trigger != null) trigger.triggers.Clear();
+
+        TMP_Text texto = copia.GetComponentInChildren<TMP_Text>(true);
+        TMP_Text original = jugar.GetComponentInChildren<TMP_Text>(true);
+        if (texto != null)
+        {
+            string t = original != null ? original.text : "";
+            int n = 0;
+            while (n < t.Length && t[n] == ' ') n++; // conserva los espacios con que se alinean los textos
+            string resto = t.Substring(n);
+            bool mayusculas = resto.Length > 0 && resto == resto.ToUpperInvariant();
+            texto.text = t.Substring(0, n) + (mayusculas ? "SUPERVIVENCIA" : "Supervivencia");
+        }
+
+        // Hacer espacio en el panel (tiene Layout Group que acomoda los botones)
+        RectTransform panel = padre as RectTransform;
+        RectTransform rj = jugar.transform as RectTransform;
+        if (panel != null && rj != null && panel.GetComponent<LayoutGroup>() != null)
+        {
+            float espacio = rj.rect.height;
+            VerticalLayoutGroup v = panel.GetComponent<VerticalLayoutGroup>();
+            if (v != null) espacio += v.spacing;
+            panel.sizeDelta += new Vector2(0f, espacio);
+        }
+
+        // Insertar en la navegación justo después de Jugar
+        List<Button> lista = new List<Button>(botonesMenu);
+        lista.Insert(1, boton);
+        botonesMenu = lista.ToArray();
+    }
+
     // ── Acciones de los botones ──────────────────────────────────────────────
 
     /// <summary>Botón JUGAR — lleva al lobby y habilita que los jugadores se unan.</summary>
     public void Jugar()
     {
+        ModoSupervivencia.Activo = false;
+        GameFlowManager.Instance.MostrarLobby();
+    }
+
+    /// <summary>Botón SUPERVIVENCIA — mismo lobby, pero al estar todos listos arranca la supervivencia (sin calendario).</summary>
+    public void JugarSupervivencia()
+    {
+        ModoSupervivencia.Activo = true;
         GameFlowManager.Instance.MostrarLobby();
     }
 

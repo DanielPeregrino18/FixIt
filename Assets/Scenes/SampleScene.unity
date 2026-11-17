@@ -19348,6 +19348,24 @@ MonoBehaviour:
   intervaloRafagas: 10
   segundoUmbralFinal: 200
   intervaloRafagasFinal: 5
+  velocidadDificultad: 1
+  primeraOleadaSupervivencia: 3
+  intervaloOleadaInicial: 24
+  intervaloOleadaMinimo: 13
+  suavidadIntervalo: 420
+  laptopsPorOleadaInicial: 1
+  segundosPorLaptopExtra: 240
+  laptopsPorOleadaMaximo: 3
+  segundoIncendiosLaptops: 90
+  segundoInicioRespiros: 300
+  oleadasEntreRespirosMin: 3
+  oleadasEntreRespirosMax: 5
+  duracionRespiro: 25
+  primerServidorSupervivencia: 120
+  intervaloServidorInicial: 120
+  reduccionIntervaloServidor: 12
+  intervaloServidorMinimo: 50
+  segundoServidoresDobles: 720
   materialesColor:
   - {fileID: 2100000, guid: 5055a8bc3912e574193c645b9a38e561, type: 2}
   - {fileID: 2100000, guid: 138cce1a508ea964daba1c976d473816, type: 2}
