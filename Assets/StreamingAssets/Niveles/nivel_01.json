@@ -4,10 +4,13 @@
   "servidores": [],
   "oleadas": [
     { "segundo": 1,   "laptops": ["facil"] },
-    { "segundo": 40,  "laptops": ["facil"] },
-    { "segundo": 80,  "laptops": ["facil", "facil"] },
-    { "segundo": 130, "laptops": ["facil"] },
-    { "segundo": 170, "laptops": ["facil", "facil"] },
+    { "segundo": 25,  "laptops": ["facil"] },
+    { "segundo": 50,  "laptops": ["facil", "facil"] },
+    { "segundo": 80,  "laptops": ["facil"] },
+    { "segundo": 105, "laptops": ["facil", "facil"] },
+    { "segundo": 135, "laptops": ["facil"] },
+    { "segundo": 160, "laptops": ["facil", "facil"] },
+    { "segundo": 190, "laptops": ["facil"] },
     { "segundo": 225, "laptops": ["facil"] }
   ]
 }

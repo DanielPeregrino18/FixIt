@@ -9,7 +9,7 @@
     { "segundo": 1,   "laptops": ["media", "dificil"] },
     { "segundo": 35,  "laptops": ["muy_dificil", "dificil"] },
     { "segundo": 70,  "laptops": ["dificil"] },
-    { "segundo": 105, "laptops": ["media", "muy_dificil"] },
+    { "segundo": 105, "laptops": ["media", "dificil"] },
     { "segundo": 140, "laptops": ["dificil", "media"] },
     { "segundo": 180, "laptops": ["muy_dificil", "dificil"] },
     { "segundo": 225, "laptops": ["media"] }

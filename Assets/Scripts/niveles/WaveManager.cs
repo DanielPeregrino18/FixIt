@@ -5,8 +5,9 @@ using UnityEngine;
 /// <summary>
 /// Ejecuta las oleadas del nivel actual según el JSON cargado.
 /// Escala la cantidad de laptops según el número de jugadores:
-/// total = base × jugadores, repartido en ráfagas de máximo N laptops
-/// con un intervalo entre ráfagas.
+/// total = base × multiplicador (1 jugador ×1, 2 ×1.8, 3 ×2.3, 4 ×2.6 por defecto),
+/// repartido en ráfagas de máximo N laptops con un intervalo entre ráfagas.
+/// El escalado no es lineal porque las mesas son las mismas sin importar cuántos jueguen.
 /// </summary>
 public class WaveManager : MonoBehaviour
 {
@@ -17,6 +18,9 @@ public class WaveManager : MonoBehaviour
     public GameObject laptopPrefab;
 
     [Header("Escalado por jugadores")]
+    [Tooltip("Cuántas veces la lista del JSON sale con 1, 2, 3 y 4 jugadores. No es lineal: las mesas son " +
+             "las mismas sin importar cuántos jueguen, así que 4 jugadores no rinden 4 veces más")]
+    public float[] multiplicadorPorJugadores = { 1f, 1.8f, 2.3f, 2.6f };
     [Tooltip("Pausa entre laptops de una misma ráfaga")]
     public float delayEntreHorda = 0.5f;
     [Tooltip("Laptops máximas por ráfaga")]
@@ -35,6 +39,8 @@ public class WaveManager : MonoBehaviour
 
     // ── Estado interno ────────────────────────────────────────────────────────
     private NivelData _nivelActual;
+    // Lista final de laptops de cada oleada (ya escalada), calculada una vez al cargar el nivel
+    private readonly Dictionary<OleadaData, List<string>> _laptopsPorOleada = new Dictionary<OleadaData, List<string>>();
 
     private static readonly Laptop.Problema[] _problemasFacil = {
         Laptop.Problema.Limpieza,
@@ -82,17 +88,16 @@ public class WaveManager : MonoBehaviour
         {
             GameManager.Instance.IniciarNivel(datos.nivel, esReintento);
             GameManager.Instance.incendiosActivos = datos.incendios;
-
-            // Total de laptops que saldrán (JSON × jugadores) para el fin anticipado
-            int jugadoresNivel = 1;
-            if (LobbyManager.Instance != null)
-                jugadoresNivel = Mathf.Max(1, LobbyManager.Instance.CantidadJugadores());
-            int totalEsperado = 0;
-            if (datos.oleadas != null)
-                foreach (OleadaData o in datos.oleadas)
-                    if (o.laptops != null) totalEsperado += o.laptops.Count * jugadoresNivel;
-            GameManager.Instance.DefinirLaptopsEsperadas(totalEsperado);
         }
+
+        // Lista escalada de cada oleada (se calcula una sola vez: el total esperado y lo que
+        // sale de verdad tienen que coincidir para que funcione el fin anticipado)
+        int jugadoresNivel = 1;
+        if (LobbyManager.Instance != null)
+            jugadoresNivel = Mathf.Max(1, LobbyManager.Instance.CantidadJugadores());
+        int totalEsperado = ConstruirOleadasEscaladas(datos, jugadoresNivel);
+        if (GameManager.Instance != null)
+            GameManager.Instance.DefinirLaptopsEsperadas(totalEsperado);
 
         // Configurar servidores: primero desactivar todos, luego programar
         // solo los que indica el JSON de este nivel.
@@ -172,18 +177,16 @@ public class WaveManager : MonoBehaviour
     /// </summary>
     IEnumerator EjecutarOleadaEscalada(OleadaData oleada, int jugadores)
     {
-        // 1. Construir lista total: la base repetida una vez por jugador,
-        //    conservando la proporción de tipos.
-        List<string> total = new List<string>();
-        for (int j = 0; j < jugadores; j++)
-            total.AddRange(oleada.laptops);
+        // 1. Lista total ya escalada (la calculó ConstruirOleadasEscaladas al cargar el nivel)
+        if (!_laptopsPorOleada.TryGetValue(oleada, out List<string> total))
+            total = new List<string>(oleada.laptops);
 
         // Oleadas del tramo final despliegan sus ráfagas más rápido
         float intervalo = oleada.segundo >= segundoUmbralFinal
             ? intervaloRafagasFinal
             : intervaloRafagas;
 
-        Debug.Log($"WaveManager: Oleada seg {oleada.segundo} — {oleada.laptops.Count} base × {jugadores} jugadores = {total.Count} laptops (intervalo {intervalo}s).");
+        Debug.Log($"WaveManager: Oleada seg {oleada.segundo} — {oleada.laptops.Count} base, {jugadores} jugador(es) → {total.Count} laptops (intervalo {intervalo}s).");
 
         // 2. Repartir en ráfagas
         int indice = 0;
@@ -277,6 +280,62 @@ public class WaveManager : MonoBehaviour
         // que es el momento real de "llegada" (no cuando se instancia en la banda).
 
         Debug.Log($"WaveManager: Laptop '{tipo}' spawneada.");
+    }
+
+    /// <summary>Multiplicador de laptops para esta cantidad de jugadores.</summary>
+    float Multiplicador(int jugadores)
+    {
+        if (multiplicadorPorJugadores == null || multiplicadorPorJugadores.Length == 0) return jugadores;
+        int i = Mathf.Clamp(jugadores - 1, 0, multiplicadorPorJugadores.Length - 1);
+        return Mathf.Max(1f, multiplicadorPorJugadores[i]);
+    }
+
+    /// <summary>
+    /// Calcula la lista final de laptops de cada oleada: la base del JSON × el multiplicador.
+    /// Las fracciones (p. ej. 3 laptops × 1.6 = 4.8) se arrastran a la siguiente oleada para que el
+    /// total del nivel salga parejo; las laptops extra se eligen al azar de la misma oleada, así se
+    /// conserva la proporción de tipos. Devuelve el total del nivel.
+    /// </summary>
+    int ConstruirOleadasEscaladas(NivelData datos, int jugadores)
+    {
+        _laptopsPorOleada.Clear();
+        if (datos.oleadas == null) return 0;
+
+        datos.oleadas.Sort((a, b) => a.segundo.CompareTo(b.segundo));
+        float mult = Multiplicador(jugadores);
+        float arrastre = 0f;
+        int total = 0;
+
+        foreach (OleadaData o in datos.oleadas)
+        {
+            List<string> lista = new List<string>();
+            if (o.laptops != null && o.laptops.Count > 0)
+            {
+                float exacto = o.laptops.Count * mult + arrastre;
+                int cantidad = Mathf.Max(o.laptops.Count, Mathf.FloorToInt(exacto + 0.0001f));
+                arrastre = Mathf.Max(0f, exacto - cantidad);
+
+                // Copias completas de la oleada…
+                while (lista.Count + o.laptops.Count <= cantidad)
+                    lista.AddRange(o.laptops);
+
+                // …y las que falten, al azar de la misma oleada
+                List<string> mezcla = new List<string>(o.laptops);
+                for (int i = 0; i < mezcla.Count; i++)
+                {
+                    int j = Random.Range(i, mezcla.Count);
+                    (mezcla[i], mezcla[j]) = (mezcla[j], mezcla[i]);
+                }
+                for (int i = 0; lista.Count < cantidad; i++)
+                    lista.Add(mezcla[i % mezcla.Count]);
+            }
+
+            _laptopsPorOleada[o] = lista;
+            total += lista.Count;
+        }
+
+        Debug.Log($"WaveManager: {jugadores} jugador(es), multiplicador ×{mult} → {total} laptops en el nivel.");
+        return total;
     }
 
     void AsignarProblemas(Laptop laptop, string tipo)

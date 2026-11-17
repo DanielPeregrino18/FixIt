@@ -6,11 +6,12 @@
   ],
   "oleadas": [
     { "segundo": 1,   "laptops": ["facil"] },
-    { "segundo": 40,  "laptops": ["media"] },
-    { "segundo": 80,  "laptops": ["media", "dificil"] },
-    { "segundo": 120, "laptops": ["media"] },
-    { "segundo": 160, "laptops": ["dificil"] },
-    { "segundo": 195, "laptops": ["facil", "media"] },
-    { "segundo": 225, "laptops": ["media"] }
+    { "segundo": 28,  "laptops": ["media"] },
+    { "segundo": 55,  "laptops": ["media", "dificil"] },
+    { "segundo": 85,  "laptops": ["dificil"] },
+    { "segundo": 115, "laptops": ["media", "muy_dificil"] },
+    { "segundo": 145, "laptops": ["dificil"] },
+    { "segundo": 175, "laptops": ["media", "dificil"] },
+    { "segundo": 210, "laptops": ["dificil", "media"] }
   ]
 }
