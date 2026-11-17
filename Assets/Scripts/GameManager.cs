@@ -476,6 +476,9 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        // Piezas que se sacaron del almacén y nunca se instalaron también son desperdicio
+        ContarPiezasSinUsar();
+
         int estrellaGanadas = CalcularEstrellas();
 
         // NUEVO: guardar el progreso
@@ -606,6 +609,23 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Al terminar el nivel: cada pieza de hardware que sigue en el mapa (en manos, en el suelo,
+    /// en una mesa o volando) se sacó del almacén y no se usó, así que cuenta como desperdiciada.
+    /// </summary>
+    void ContarPiezasSinUsar()
+    {
+        int sinUsar = 0;
+        foreach (HardwarePiece p in FindObjectsByType<HardwarePiece>())
+            if (p != null) sinUsar++;
+
+        if (sinUsar > 0)
+        {
+            _piezasDesperdiciadas += sinUsar;
+            Debug.Log($"GameManager: {sinUsar} pieza(s) sin usar al terminar. Desperdiciadas en total: {_piezasDesperdiciadas}");
+        }
+    }
+
     /// <summary>Bloquea el movimiento de todos los jugadores activos (fin de nivel / game over).</summary>
     void BloquearJugadores()
     {
@@ -617,9 +637,10 @@ public class GameManager : MonoBehaviour
     int CalcularEstrellas()
     {
         // ⭐ 1 estrella — pasaste el nivel (sobreviviste sin Game Over)
-        // ⭐⭐ 2 estrellas — cero piezas desperdiciadas Y entregaste al menos una laptop
+        // ⭐⭐ 2 estrellas — entregaste todas las laptops aunque desperdiciaste piezas,
+        //     o no desperdiciaste ninguna y entregaste al menos una laptop
         //     (evita el exploit de "no hacer nada" = cero desperdicio trivial)
-        // ⭐⭐⭐ 3 estrellas — 100% laptops entregadas correctamente
+        // ⭐⭐⭐ 3 estrellas — 100% laptops entregadas y ninguna pieza desperdiciada
 
         if (_laptopsTotales == 0) return 1;
 
@@ -628,7 +649,7 @@ public class GameManager : MonoBehaviour
         bool sinDesperdicio = _piezasDesperdiciadas == 0;
 
         if (cienPorCiento && sinDesperdicio) return 3;
-        if (sinDesperdicio && entregoAlgo) return 2;
+        if (cienPorCiento || (sinDesperdicio && entregoAlgo)) return 2;
         return 1;
     }
 

@@ -287,7 +287,7 @@ public class NormalTable : InteractableTable
             {
                 Debug.Log($"NormalTable: {pieza.tipoPieza} desperdiciada.");
                 // _jugadorInstalando?.GetComponent<GestureController>()?.MostrarGesto(TipoGesto.Estresado); // pendiente: integrar sistema de gestos
-                // GameManager.instance.RegistrarPiezaDesperdiciada(); // futuro
+                if (GameManager.Instance != null) GameManager.Instance.RegistrarPiezaDesperdiciada();
             }
         }
 
