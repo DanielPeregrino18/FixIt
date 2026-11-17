@@ -54,6 +54,14 @@ public class PlayerInteraction : MonoBehaviour
     [Tooltip("Grados: qué tan de frente tiene que estar el compañero para atraparla (90 = medio círculo)")]
     public float anguloAtrapar = 75f;
 
+    [Header("Squash & stretch (rebote al agarrar y soltar)")]
+    [Tooltip("Al recoger: negativo = el objeto se estira hacia arriba y rebota")]
+    [Range(-0.6f, 0.6f)] public float fuerzaReboteRecoger = -0.25f;
+    [Tooltip("Al soltar o colocar en una mesa: positivo = el objeto se aplasta y rebota")]
+    [Range(-0.6f, 0.6f)] public float fuerzaReboteSoltar = 0.3f;
+    [Tooltip("Rebote del personaje al agarrar algo (y estirón al lanzar). 0 = sin rebote")]
+    [Range(0f, 0.4f)] public float fuerzaReboteJugador = 0.1f;
+
     [Header("Físicas y Colisiones (Anti-Traspaso)")]
     public BoxCollider playerCollider;
 
@@ -474,6 +482,7 @@ public class PlayerInteraction : MonoBehaviour
                       this, radioAtrapar, anguloAtrapar);
 
         _proximoLanzamiento = Time.time + esperaEntreLanzamientos;
+        RebotarJugador(-fuerzaReboteJugador * 1.3f); // estirón al lanzar
 
         ProceduralHead cabeza = GetComponent<ProceduralHead>();
         if (cabeza != null) cabeza.ReaccionLanzar();
@@ -494,6 +503,36 @@ public class PlayerInteraction : MonoBehaviour
     {
         if (pieza == null || !PuedeAtrapar()) return;
         RecogerDelSuelo(pieza);
+    }
+
+    // ── Squash & stretch ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Se llama cuando cambia lo que hay en la mano, venga de donde venga (suelo, mesa, almacén,
+    /// atrapado en el aire…): lo nuevo se estira, lo que se soltó o se colocó se aplasta.
+    /// </summary>
+    void ReboteAlCambiarDeMano(GameObject anterior, GameObject nuevo)
+    {
+        if (nuevo != null)
+        {
+            Rebote.Aplicar(nuevo, fuerzaReboteRecoger);
+            RebotarJugador(fuerzaReboteJugador);
+        }
+
+        // Lo que se soltó (si sigue existiendo y no va volando: ese rebota al aterrizar)
+        if (anterior != null && anterior != nuevo)
+        {
+            PiezaLanzada vuelo = anterior.GetComponent<PiezaLanzada>();
+            if (vuelo == null || !vuelo.EnVuelo)
+                Rebote.Aplicar(anterior, fuerzaReboteSoltar);
+        }
+    }
+
+    /// <summary>Rebote del personaje (se aplica al esqueleto, así no se deforma su collider).</summary>
+    public void RebotarJugador(float fuerza)
+    {
+        Transform esqueleto = transform.Find("Armature");
+        if (esqueleto != null) Rebote.Aplicar(esqueleto.gameObject, fuerza, 0.35f);
     }
 
     // ── Uso del extintor ──────────────────────────────────────────────────────
@@ -549,7 +588,10 @@ public class PlayerInteraction : MonoBehaviour
     void ActualizarAnimacionSostenido()
     {
         if (heldItem == _ultimoHeldItemParaAnim) return;
+        GameObject anterior = _ultimoHeldItemParaAnim;
         _ultimoHeldItemParaAnim = heldItem;
+
+        ReboteAlCambiarDeMano(anterior, heldItem);
 
         if (anim == null) return;
 

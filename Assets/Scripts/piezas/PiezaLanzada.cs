@@ -351,6 +351,7 @@ public class PiezaLanzada : MonoBehaviour
         if (pi != null) pi.isInteractable = true;
 
         EfectosPolvo.Puff(new Vector3(transform.position.x, _sueloY + 0.05f, transform.position.z), 10, 0.3f);
+        Rebote.Aplicar(gameObject, _lanzador != null ? _lanzador.fuerzaReboteSoltar * 1.3f : 0.4f);
     }
 
     /// <summary>Red de seguridad: si tras aterrizar se cae por debajo del piso, vuelve al punto de caída.</summary>

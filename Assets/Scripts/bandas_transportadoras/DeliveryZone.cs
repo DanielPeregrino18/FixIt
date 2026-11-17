@@ -9,6 +9,8 @@ public class DeliveryZone : InteractableTable
 {
     [Header("Punto donde se coloca la laptop en la banda")]
     public Transform tableSocket;
+    [Tooltip("Qué tanto se aplasta la laptop al caer en la banda (squash & stretch). 0 = nada")]
+    [Range(0f, 0.6f)] public float fuerzaReboteEntrega = 0.45f;
 
     [Tooltip("Segundos antes de destruir la laptop una vez entregada")]
     public float tiempoDestruccion = 4f;
@@ -100,6 +102,7 @@ public class DeliveryZone : InteractableTable
         }
 
         laptop.transform.localScale = Vector3.one;
+        Rebote.Aplicar(laptop, fuerzaReboteEntrega, 0.5f); // aplastón al caer en la banda
 
         // Activar físicas para que la banda la mueva
         Rigidbody rb = laptop.GetComponent<Rigidbody>();

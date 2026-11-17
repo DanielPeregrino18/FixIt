@@ -405,6 +405,9 @@ MonoBehaviour:
   velocidadLanzamiento: 15
   alturaArcoLanzamiento: 2
   alturaSondeoLanzamiento: 1.3
+  fuerzaReboteRecoger: -0.25
+  fuerzaReboteSoltar: 0.3
+  fuerzaReboteJugador: 0.1
   playerCollider: {fileID: 4093366820529885431}
   "tama\xF1oNormal": {x: 1, y: 2, z: 1}
   centroNormal: {x: 0, y: 1, z: 0}
