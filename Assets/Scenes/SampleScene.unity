@@ -19366,6 +19366,10 @@ MonoBehaviour:
   reduccionIntervaloServidor: 12
   intervaloServidorMinimo: 50
   segundoServidoresDobles: 720
+  segundoPrimeraDorada: 120
+  intervaloMinimoDorada: 90
+  probabilidadDorada: 0.25
+  colorDorado: {r: 1, g: 0.78, b: 0.15, a: 1}
   materialesColor:
   - {fileID: 2100000, guid: 5055a8bc3912e574193c645b9a38e561, type: 2}
   - {fileID: 2100000, guid: 138cce1a508ea964daba1c976d473816, type: 2}
@@ -37244,6 +37248,10 @@ MonoBehaviour:
   duracionNivel: 300
   marcaHorda: 0.76
   maxLaptopsPermitidas: 6
+  entregasParaRecuperarVida: 5
+  segundosPorFase: 120
+  colorRecordSuperado: {r: 1, g: 0.78, b: 0.1, a: 1}
+  subirTiempoResultados: 11
   perdidasQueQuita: 2
   duracionStaminaInfinita: 60
   duracionServidoresRapidos: 90
@@ -37253,8 +37261,11 @@ MonoBehaviour:
   duracionRespiroPoder: 40
   segundoMinimoRespiroPoder: 300
   duracionExtintorInfinito: 60
+  duracionReparacionRapida: 45
+  factorReparacionRapida: 4
   duracionAnuncioPoder: 2.5
   colorTextoPoder: {r: 1, g: 0.85, b: 0.05, a: 1}
+  colorTemporizadorPoder: {r: 0.35, g: 1, b: 0.3, a: 1}
   contornoTextoPoder: 0.3
   incendiosActivos: 1
   barraProgreso: {fileID: 407422445}
@@ -41652,6 +41663,11 @@ MonoBehaviour:
     que el otro 10% est\xE1 en llamas."
   - "Si el usuario te dice 'yo no le mov\xED a nada, as\xED estaba', prep\xE1rate
     para lo peor."
+  fondoPanelPoderes: {fileID: 0}
+  tamanoPanelPoderes: {x: 600, y: 660}
+  margenPanelPoderes: 40
+  tamanoTextoPoderes: 24
+  colorNombrePoder: {r: 1, g: 0.85, b: 0.05, a: 1}
 --- !u!4 &1923954841
 Transform:
   m_ObjectHideFlags: 0
@@ -45645,6 +45661,10 @@ MonoBehaviour:
   - {fileID: 2050867355}
   escalaSeleccionado: 1.03
   retrasoEntrada: 0.25
+  imagenCreditos: {fileID: 0}
+  iconoCreditos: {fileID: 21300000, guid: 70e08f66ba4c4affb3cfad451c5e31b0, type: 3}
+  tamanoIconoCreditos: {x: 58, y: 72}
+  duracionFundidoCreditos: 0.3
 --- !u!198 &2055244719 stripped
 ParticleSystem:
   m_CorrespondingSourceObject: {fileID: 854517572230075777, guid: 4b38b1b3e38ed7e499c047067beb6122, type: 3}

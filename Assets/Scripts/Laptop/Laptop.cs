@@ -169,6 +169,17 @@ public class Laptop : MonoBehaviour, IExtinguishable
     }
 
     /// <summary>
+    /// Pone la laptop en llamas desde ya (laptop de práctica del extintor al iniciar un nivel).
+    /// segundosAntesDeCalcinar reemplaza el tiempo normal que aguanta en llamas.
+    /// </summary>
+    public void EmpezarEnLlamas(float segundosAntesDeCalcinar)
+    {
+        if (segundosAntesDeCalcinar > 0f) tiempoEnLlamasAntesDeCalcinar = segundosAntesDeCalcinar;
+        _calentando = true;
+        EntrarEnLlamas();
+    }
+
+    /// <summary>
     /// Apaga de inmediato el fuego o el humo (se llama al completar el rocío con el extintor).
     /// (El humo también se puede quitar soplándole, al recogerla con la mano.)
     /// </summary>

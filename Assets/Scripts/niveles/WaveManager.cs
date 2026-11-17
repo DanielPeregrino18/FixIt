@@ -34,6 +34,13 @@ public class WaveManager : MonoBehaviour
     [Tooltip("Intervalo entre ráfagas para oleadas del tramo final")]
     public float intervaloRafagasFinal = 5f;
 
+    [Header("Laptop en llamas al iniciar (práctica del extintor)")]
+    [Tooltip("En estos niveles, al empezar ya hay una laptop en llamas en una mesa de trabajo al azar. " +
+             "No tiene problemas: al apagarla y entregarla cuenta como buena; si se quema, como perdida")]
+    public int[] nivelesConLaptopEnLlamas = { 6 };
+    [Tooltip("Segundos que aguanta en llamas antes de perderse (las normales aguantan 20)")]
+    public float segundosLaptopEnLlamasInicial = 60f;
+
     [Header("Supervivencia — oleadas")]
     [Tooltip("Multiplica qué tan rápido sube la dificultad (1 = normal, 1.5 = 50% más rápido)")]
     public float velocidadDificultad = 1f;
@@ -148,6 +155,11 @@ public class WaveManager : MonoBehaviour
         if (LobbyManager.Instance != null)
             jugadoresNivel = Mathf.Max(1, LobbyManager.Instance.CantidadJugadores());
         int totalEsperado = ConstruirOleadasEscaladas(datos, jugadoresNivel);
+
+        // Práctica del extintor: una laptop ya en llamas sobre una mesa (cuenta dentro del total)
+        if (!ModoSupervivencia.Activo && System.Array.IndexOf(nivelesConLaptopEnLlamas, datos.nivel) >= 0 &&
+            ColocarLaptopEnLlamas())
+            totalEsperado++;
         if (GameManager.Instance != null)
             GameManager.Instance.DefinirLaptopsEsperadas(totalEsperado);
 
@@ -502,6 +514,58 @@ public class WaveManager : MonoBehaviour
         // que es el momento real de "llegada" (no cuando se instancia en la banda).
 
         Debug.Log($"WaveManager: Laptop '{tipo}' spawneada.");
+    }
+
+    /// <summary>
+    /// Pone una laptop sin problemas, ya en llamas, en una mesa de trabajo libre al azar.
+    /// Se registra como "llegada" igual que las que bajan por la banda. Devuelve true si se colocó.
+    /// </summary>
+    bool ColocarLaptopEnLlamas()
+    {
+        if (laptopPrefab == null) return false;
+
+        List<NormalTable> libres = new List<NormalTable>();
+        foreach (NormalTable t in FindObjectsByType<NormalTable>())
+            if (t != null && t.currentItemOnTable == null && t.tableSocket != null) libres.Add(t);
+        if (libres.Count == 0)
+        {
+            Debug.LogWarning("WaveManager: no hay mesa libre para la laptop en llamas inicial.");
+            return false;
+        }
+        NormalTable mesa = libres[Random.Range(0, libres.Count)];
+
+        GameObject obj = Instantiate(laptopPrefab, mesa.tableSocket.position, laptopPrefab.transform.rotation);
+
+        if (materialesColor != null && materialesColor.Length > 0)
+        {
+            MeshRenderer renderer = obj.GetComponentInChildren<MeshRenderer>();
+            if (renderer != null) renderer.material = materialesColor[Random.Range(0, materialesColor.Length)];
+        }
+
+        // Como si un jugador la hubiera dejado en la mesa
+        LaptopController lc = obj.GetComponent<LaptopController>();
+        if (lc != null) { lc.yaLlego = true; lc.isInteractable = false; lc.enabled = false; }
+        Rigidbody rb = obj.GetComponent<Rigidbody>();
+        if (rb != null) rb.isKinematic = true;
+
+        obj.transform.SetParent(mesa.tableSocket);
+        obj.transform.localPosition = Vector3.zero;
+        obj.transform.localRotation = Quaternion.identity;
+        obj.transform.localScale = Vector3.one;
+        Collider col = obj.GetComponent<Collider>();
+        if (col != null) col.enabled = true;
+        mesa.currentItemOnTable = obj;
+
+        Laptop laptop = obj.GetComponent<Laptop>();
+        if (laptop != null)
+        {
+            laptop.problemasActivos.Clear(); // sin problemas: apagarla y entregarla = laptop buena
+            laptop.EmpezarEnLlamas(segundosLaptopEnLlamasInicial);
+        }
+
+        if (GameManager.Instance != null) GameManager.Instance.RegistrarLaptopLlegada();
+        Debug.Log($"WaveManager: 🔥 laptop en llamas inicial en la mesa '{mesa.name}'.");
+        return true;
     }
 
     /// <summary>Multiplicador de laptops para esta cantidad de jugadores.</summary>

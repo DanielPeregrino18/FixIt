@@ -258,6 +258,10 @@ public class PlayerInteraction : MonoBehaviour
             castPoint.rotation, castDistance,
             interactableLayer);
 
+        // El BoxCast solo mira la capa de interactuables, así que "ve" a través de las paredes.
+        // Si hay una pared (o algo sólido) en medio, no cuenta.
+        if (hasHit && HayParedEnMedio(hit)) hasHit = false;
+
         if (hasHit)
         {
             InteractableTable seenTable = hit.collider.GetComponent<InteractableTable>();
@@ -295,6 +299,41 @@ public class PlayerInteraction : MonoBehaviour
     }
 
     void ClearItemOnFloor() => _currentItemOnFloor = null;
+
+    private readonly RaycastHit[] _hitsVision = new RaycastHit[16];
+
+    /// <summary>
+    /// ¿Hay algo sólido entre el personaje y lo que detectó? El rayo sale del centro del personaje
+    /// (no del castPoint, que pegado a una pared puede quedar dentro de ella y no la detectaría).
+    /// No cuentan mesas, objetos sueltos, jugadores ni lo que lleva en la mano.
+    /// </summary>
+    bool HayParedEnMedio(RaycastHit hit)
+    {
+        Vector3 origen = new Vector3(transform.position.x, castPoint.position.y, transform.position.z);
+        Vector3 destino = hit.point;
+        if (hit.distance <= 0f || destino == Vector3.zero) destino = hit.collider.bounds.center; // ya estaba encimado
+        destino.y = origen.y;
+
+        Vector3 dir = destino - origen;
+        float dist = dir.magnitude;
+        if (dist < 0.01f) return false;
+
+        int n = Physics.RaycastNonAlloc(origen, dir / dist, _hitsVision, dist, ~0, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < n; i++)
+        {
+            Collider c = _hitsVision[i].collider;
+            if (c == null || c == hit.collider) continue;
+            if (c.transform.IsChildOf(transform)) continue;                 // yo y lo que llevo
+            if (c.transform.IsChildOf(hit.collider.transform)) continue;     // partes del mismo objeto
+            if (c.GetComponentInParent<InteractableTable>() != null) continue;
+            if (c.GetComponentInParent<PickableItem>() != null) continue;
+            if (c.GetComponentInParent<LaptopController>() != null) continue;
+            if (c.GetComponentInParent<Extinguisher>() != null) continue;
+            if (c.GetComponentInParent<PlayerInteraction>() != null) continue;
+            return true; // pared, puerta de vidrio cerrada, etc.
+        }
+        return false;
+    }
 
     // ── Objeto bajo los pies ──────────────────────────────────────────────────
     // El BoxCast no detecta lo que ya está solapado con él al empezar, así que un

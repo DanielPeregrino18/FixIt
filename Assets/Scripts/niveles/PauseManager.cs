@@ -34,6 +34,18 @@ public class PauseManager : MonoBehaviour
     [TextArea(1, 3)]
     public string[] consejos;
 
+    [Header("Panel de poderes (solo en Supervivencia)")]
+    [Tooltip("Fondo del panel lateral. Si se deja vacío se copia el fondo del consejo (FondoConsejo)")]
+    public Image fondoPanelPoderes;
+    public Vector2 tamanoPanelPoderes = new Vector2(600f, 660f);
+    [Tooltip("Separación desde el borde derecho de la pantalla")]
+    public float margenPanelPoderes = 40f;
+    public float tamanoTextoPoderes = 24f;
+    public Color colorNombrePoder = new Color(1f, 0.85f, 0.05f, 1f);
+
+    private GameObject _panelPoderes;
+    private TMP_Text _textoPoderes;
+
     private readonly List<int> _mazoConsejos = new List<int>();
     private int _ultimoConsejo = -1;
 
@@ -172,6 +184,7 @@ public class PauseManager : MonoBehaviour
         if (canvasPausa != null) canvasPausa.SetActive(true);
 
         MostrarConsejo();
+        MostrarPanelPoderes();
 
         _indice = 0;
         ActualizarSeleccion();
@@ -217,6 +230,159 @@ public class PauseManager : MonoBehaviour
 
         textoConsejo.gameObject.SetActive(true);
         textoConsejo.text = string.Format(formatoConsejo, consejos[indice]);
+    }
+
+    // ── Panel de poderes (Supervivencia) ──────────────────────────────────────
+
+    void MostrarPanelPoderes()
+    {
+        if (!ModoSupervivencia.Activo)
+        {
+            if (_panelPoderes != null) _panelPoderes.SetActive(false);
+            return;
+        }
+
+        CrearPanelPoderes();
+        if (_panelPoderes == null) return;
+        _textoPoderes.text = TextoPoderes();
+        _panelPoderes.SetActive(true);
+        AcomodarPanelPoderes();
+    }
+
+    /// <summary>
+    /// Coloca el panel en el hueco libre: a la derecha de lo más ancho del menú de pausa (botones)
+    /// y arriba del fondo del consejo, para que nunca se encime con ellos.
+    /// </summary>
+    void AcomodarPanelPoderes()
+    {
+        RectTransform canvasRT = canvasPausa.transform as RectTransform;
+        RectTransform rp = (RectTransform)_panelPoderes.transform;
+        if (canvasRT == null) return;
+        Canvas.ForceUpdateCanvases();
+
+        Rect r = canvasRT.rect;
+        float izquierda = r.xMin + r.width * 0.5f + 200f; // por si no se encuentra el menú
+        float abajo = r.yMin + margenPanelPoderes;
+        Vector3[] esquinas = new Vector3[4];
+
+        foreach (Transform hijo in canvasPausa.transform)
+        {
+            if (hijo == _panelPoderes.transform || !hijo.gameObject.activeInHierarchy) continue;
+            bool esConsejo = hijo.name == "FondoConsejo" || (textoConsejo != null && hijo == textoConsejo.transform);
+
+            foreach (RectTransform rt in hijo.GetComponentsInChildren<RectTransform>(false))
+            {
+                if (rt.GetComponent<Graphic>() == null) continue; // solo lo que se ve
+                rt.GetWorldCorners(esquinas);
+                for (int i = 0; i < 4; i++)
+                {
+                    Vector3 p = canvasRT.InverseTransformPoint(esquinas[i]);
+                    if (esConsejo) abajo = Mathf.Max(abajo, p.y + margenPanelPoderes * 0.5f);
+                    else izquierda = Mathf.Max(izquierda, p.x + margenPanelPoderes);
+                }
+            }
+        }
+
+        float derecha = r.xMax - margenPanelPoderes;
+        float arriba = r.yMax - margenPanelPoderes;
+        float ancho = Mathf.Min(tamanoPanelPoderes.x, derecha - izquierda);
+        float alto = Mathf.Min(tamanoPanelPoderes.y, arriba - abajo);
+        if (ancho < 260f) { ancho = 260f; } // pantalla muy angosta: mejor encimado que ilegible
+
+        // Pegado al borde derecho, centrado en el alto disponible
+        Vector2 centro = new Vector2(derecha - ancho * 0.5f, (arriba + abajo) * 0.5f);
+        rp.anchorMin = rp.anchorMax = new Vector2(0.5f, 0.5f);
+        rp.pivot = new Vector2(0.5f, 0.5f);
+        rp.sizeDelta = new Vector2(ancho, alto);
+        rp.anchoredPosition = centro - r.center;
+        rp.SetAsLastSibling();
+    }
+
+    /// <summary>Crea el panel a la derecha copiando el fondo y el texto del consejo (mismo estilo).</summary>
+    void CrearPanelPoderes()
+    {
+        if (_panelPoderes != null || canvasPausa == null || textoConsejo == null) return;
+
+        // Fondo: el asignado, o una copia del fondo del consejo
+        Image plantilla = fondoPanelPoderes;
+        if (plantilla == null)
+        {
+            Transform f = canvasPausa.transform.Find("FondoConsejo");
+            if (f != null) plantilla = f.GetComponent<Image>();
+        }
+
+        if (plantilla != null)
+        {
+            _panelPoderes = Instantiate(plantilla.gameObject, canvasPausa.transform);
+            for (int i = _panelPoderes.transform.childCount - 1; i >= 0; i--)
+                Destroy(_panelPoderes.transform.GetChild(i).gameObject);
+        }
+        else
+        {
+            _panelPoderes = new GameObject("PanelPoderes", typeof(RectTransform), typeof(Image));
+            _panelPoderes.transform.SetParent(canvasPausa.transform, false);
+            _panelPoderes.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
+        }
+        _panelPoderes.name = "PanelPoderes";
+
+        RectTransform rp = (RectTransform)_panelPoderes.transform;
+        rp.anchorMin = rp.anchorMax = new Vector2(1f, 0.5f);
+        rp.pivot = new Vector2(1f, 0.5f);
+        rp.localScale = Vector3.one;
+        rp.anchoredPosition = new Vector2(-margenPanelPoderes, 60f);
+        rp.sizeDelta = tamanoPanelPoderes;
+
+        // Texto: copia del consejo (misma fuente), estirado dentro del panel con margen
+        _textoPoderes = Instantiate(textoConsejo, _panelPoderes.transform);
+        _textoPoderes.name = "TextoPoderes";
+        _textoPoderes.gameObject.SetActive(true);
+        RectTransform rt = (RectTransform)_textoPoderes.transform;
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.localScale = Vector3.one;
+        rt.offsetMin = new Vector2(32f, 28f);
+        rt.offsetMax = new Vector2(-32f, -28f);
+        // El texto del consejo usa márgenes negativos enormes para ensancharse; la copia no debe heredarlos
+        _textoPoderes.margin = Vector4.zero;
+        _textoPoderes.enableAutoSizing = true; // por si el texto no cabe, se encoge solo
+        _textoPoderes.fontSizeMin = 14f;
+        _textoPoderes.fontSizeMax = tamanoTextoPoderes;
+        _textoPoderes.alignment = TextAlignmentOptions.TopLeft;
+        _textoPoderes.enableWordWrapping = true;
+        _textoPoderes.overflowMode = TextOverflowModes.Truncate; // nunca salirse del cuadro
+    }
+
+    /// <summary>Lista de poderes con sus duraciones reales (del GameManager) y cuáles están activos.</summary>
+    string TextoPoderes()
+    {
+        GameManager gm = GameManager.Instance;
+        string c = "#" + ColorUtility.ToHtmlStringRGB(colorNombrePoder);
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+
+        sb.Append("<size=125%><b>Laptop dorada</b></size>\n");
+        sb.Append("Entrégala bien y gana un poder al azar:\n");
+
+        void Linea(Poder p, string nombre, string descripcion)
+        {
+            sb.Append("\n<color=").Append(c).Append("><b>").Append(nombre).Append("</b></color>: ").Append(descripcion);
+            float r = PoderesSupervivencia.Restante(p);
+            if (r > 0f) sb.Append(" <color=#5CFF4D><b>(activo ").Append(Mathf.CeilToInt(r)).Append("s)</b></color>");
+        }
+
+        string S(float s) => $"{s:0} s";
+        if (gm == null)
+            return sb.ToString();
+
+        Linea(Poder.QuitarPerdidas, "Perdonar perdidas", $"quita {gm.perdidasQueQuita} laptops perdidas.");
+        Linea(Poder.StaminaInfinita, "Café para todos", $"stamina llena e infinita ({S(gm.duracionStaminaInfinita)}).");
+        Linea(Poder.ServidoresRapidos, "Servidores fáciles", $"se apagan con un rocío corto ({S(gm.duracionServidoresRapidos)}).");
+        Linea(Poder.LaptopsFaciles, "Solo laptops fáciles", $"las nuevas llegan fáciles ({S(gm.duracionLaptopsFaciles)}).");
+        Linea(Poder.FuegoCongelado, "Fuego congelado", $"apaga humo y llamas, y nada se calienta ({S(gm.duracionFuegoCongelado)}).");
+        Linea(Poder.Respiro, "Respiro", $"no llegan laptops ({S(gm.duracionRespiroPoder)}, desde el minuto {gm.segundoMinimoRespiroPoder / 60f:0}).");
+        Linea(Poder.ExtintorInfinito, "Extintor infinito", $"no gasta carga ({S(gm.duracionExtintorInfinito)}).");
+        Linea(Poder.ReparacionRapida, "Reparación rápida", $"todas las mesas x{gm.factorReparacionRapida:0} más rápido ({S(gm.duracionReparacionRapida)}).");
+        return sb.ToString();
     }
 
     public void Reanudar()

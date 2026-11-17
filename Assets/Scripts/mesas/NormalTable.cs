@@ -281,11 +281,13 @@ public class NormalTable : InteractableTable
             {
                 laptopScript.ResolverProblema(problema);
                 Debug.Log($"NormalTable: {pieza.tipoPieza} instalada correctamente.");
+                if (_jugadorInstalando != null) GloboReaccion.Mostrar(_jugadorInstalando.transform, bien: true);
                 // _jugadorInstalando?.GetComponent<GestureController>()?.MostrarGesto(TipoGesto.Feliz); // pendiente: integrar sistema de gestos
             }
             else
             {
                 Debug.Log($"NormalTable: {pieza.tipoPieza} desperdiciada.");
+                if (_jugadorInstalando != null) GloboReaccion.Mostrar(_jugadorInstalando.transform, bien: false);
                 // _jugadorInstalando?.GetComponent<GestureController>()?.MostrarGesto(TipoGesto.Estresado); // pendiente: integrar sistema de gestos
                 if (GameManager.Instance != null) GameManager.Instance.RegistrarPiezaDesperdiciada();
             }
