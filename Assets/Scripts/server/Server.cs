@@ -135,7 +135,10 @@ public class Server : MonoBehaviour, IExtinguishable
 
         if (barraUI != null) barraUI.SetActive(true);
 
-        _timerApagando += deltaTime;
+        // Poder de la laptop dorada: se apaga con un rocío corto
+        float factor = PoderesSupervivencia.Activo(Poder.ServidoresRapidos) && GameManager.Instance != null
+            ? GameManager.Instance.factorServidoresRapidos : 1f;
+        _timerApagando += deltaTime * factor;
         ActualizarBarra();
 
         if (_timerApagando >= tiempoNecesarioParaApagar)

@@ -30,6 +30,9 @@ public class Extinguisher : MonoBehaviour
 
     public void Consumir(float deltaTiempo)
     {
+        // Poder de la laptop dorada: carga infinita
+        if (PoderesSupervivencia.Activo(Poder.ExtintorInfinito)) { cargaActual = cargaMaxima; return; }
+
         cargaActual -= gastoPorSegundo * deltaTiempo;
         cargaActual = Mathf.Clamp(cargaActual, 0f, cargaMaxima);
     }

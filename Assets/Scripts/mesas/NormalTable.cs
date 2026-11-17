@@ -73,7 +73,7 @@ public class NormalTable : InteractableTable
         }
 
         _graciaRestante = 0f;
-        _timerInstalacion += Time.deltaTime;
+        _timerInstalacion += Time.deltaTime * PoderesSupervivencia.FactorReparacion;
         ActualizarBarra(_timerInstalacion / tiempoInstalacion);
 
         if (_timerInstalacion >= tiempoInstalacion)

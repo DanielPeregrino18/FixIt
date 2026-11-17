@@ -43,7 +43,7 @@ public class UpdateTable : InteractableTable
 
         if (_estado == Estado.Actualizando)
         {
-            _timer += Time.deltaTime;
+            _timer += Time.deltaTime * PoderesSupervivencia.FactorReparacion;
             float progreso = Mathf.Clamp01(_timer / tiempoHasta99);
             ActualizarBarra(progreso * 0.99f);
 
@@ -57,7 +57,7 @@ public class UpdateTable : InteractableTable
         }
         else if (_estado == Estado.Atorado99)
         {
-            _timer += Time.deltaTime;
+            _timer += Time.deltaTime * PoderesSupervivencia.FactorReparacion;
             if (_timer >= _tiempoAtorado) { ActualizarBarra(1f); CompletarActualizacion(); }
         }
     }

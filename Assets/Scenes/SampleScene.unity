@@ -37244,6 +37244,18 @@ MonoBehaviour:
   duracionNivel: 300
   marcaHorda: 0.76
   maxLaptopsPermitidas: 6
+  perdidasQueQuita: 2
+  duracionStaminaInfinita: 60
+  duracionServidoresRapidos: 90
+  factorServidoresRapidos: 6
+  duracionLaptopsFaciles: 50
+  duracionFuegoCongelado: 30
+  duracionRespiroPoder: 40
+  segundoMinimoRespiroPoder: 300
+  duracionExtintorInfinito: 60
+  duracionAnuncioPoder: 2.5
+  colorTextoPoder: {r: 1, g: 0.85, b: 0.05, a: 1}
+  contornoTextoPoder: 0.3
   incendiosActivos: 1
   barraProgreso: {fileID: 407422445}
   marcaHordaUI: {fileID: 1421987444}

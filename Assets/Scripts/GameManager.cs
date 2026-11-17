@@ -35,6 +35,31 @@ public class GameManager : MonoBehaviour
     [Tooltip("Cuánto sube el texto del tiempo en resultados (ocupa el lugar de las estrellas)")]
     public float subirTiempoResultados = 11f;
 
+    [Header("Supervivencia — poderes de la laptop dorada")]
+    [Tooltip("Cuántas laptops perdidas quita el poder 'perdonar'")]
+    public int perdidasQueQuita = 2;
+    public float duracionStaminaInfinita = 60f;
+    public float duracionServidoresRapidos = 90f;
+    [Tooltip("Cuántas veces más rápido se apaga un servidor con el poder (4 s / 6 ≈ menos de 1 s)")]
+    public float factorServidoresRapidos = 6f;
+    public float duracionLaptopsFaciles = 50f;
+    public float duracionFuegoCongelado = 30f;
+    public float duracionRespiroPoder = 40f;
+    [Tooltip("El poder Respiro solo puede salir a partir de este segundo")]
+    public float segundoMinimoRespiroPoder = 300f;
+    public float duracionExtintorInfinito = 60f;
+    public float duracionReparacionRapida = 45f;
+    [Tooltip("Cuántas veces más rápido trabajan las mesas con el poder (pulsaciones ÷ factor, tiempos × factor)")]
+    public float factorReparacionRapida = 4f;
+    [Tooltip("Segundos que se ve el anuncio grande del poder")]
+    public float duracionAnuncioPoder = 2.5f;
+    [Tooltip("Color de los textos de poderes (anuncio y contadores)")]
+    public Color colorTextoPoder = new Color(1f, 0.85f, 0.05f, 1f);
+    [Tooltip("Color del temporizador de los poderes activos (debajo del récord)")]
+    public Color colorTemporizadorPoder = new Color(0.35f, 1f, 0.3f, 1f);
+    [Tooltip("Grosor del contorno negro de los textos de poderes (0 a 1)")]
+    [Range(0f, 1f)] public float contornoTextoPoder = 0.3f;
+
     [Header("Mecánica de Incendios")]
     [Tooltip("Activa o desactiva el sistema de incendios para este nivel")]
     public bool incendiosActivos = false;
@@ -207,6 +232,11 @@ public class GameManager : MonoBehaviour
     private TextMeshProUGUI _textoRecord;    // se crea copiando el reloj
     private Color _colorBaseRecord = Color.white;
     private Coroutine _popRecord;
+    private TextMeshProUGUI _textoAnuncioPoder; // anuncio grande al centro
+    private TextMeshProUGUI _textoPoderesActivos; // contadores bajo el récord
+    private float _timerAnuncioPoder = 0f;
+    private Coroutine _popPoder;
+    private Poder? _ultimoPoder = null;
     private Vector2 _posBaseScore;
     private bool _posBaseScoreCapturada = false;
 
@@ -288,6 +318,7 @@ public class GameManager : MonoBehaviour
         {
             ActualizarReloj(0f);
             ActualizarHudSupervivencia();
+            ActualizarHudPoderes();
             return;
         }
 
@@ -343,6 +374,9 @@ public class GameManager : MonoBehaviour
         _tiempoSupervivencia = 0f;
         _faseActual = 1;
         _timerAvisoFase = 0f;
+        PoderesSupervivencia.Reiniciar();
+        _ultimoPoder = null;
+        _timerAnuncioPoder = 0f;
         ConfigurarHudSegunModo();
 
         _nivelActivo = true;
@@ -621,6 +655,9 @@ public class GameManager : MonoBehaviour
         Time.timeScale = 0f;
         BloquearJugadores();
         LimpiarLaptopsSinEntregar(contarComoPerdidas: false);
+
+        if (_textoAnuncioPoder != null) _textoAnuncioPoder.gameObject.SetActive(false);
+        if (_textoPoderesActivos != null) _textoPoderesActivos.gameObject.SetActive(false);
 
         _tiempoSupervivencia = _timerActual;
         _esRecordNuevo = ModoSupervivencia.GuardarSiEsRecord(_jugadoresPartida, _tiempoSupervivencia);
@@ -1318,6 +1355,175 @@ public class GameManager : MonoBehaviour
         {
             _textoRecord.gameObject.SetActive(s);
             if (s) MostrarRecordEnHud();
+        }
+
+        if (s) CrearTextosPoder();
+        if (_textoAnuncioPoder != null) _textoAnuncioPoder.gameObject.SetActive(false);
+        if (_textoPoderesActivos != null) _textoPoderesActivos.gameObject.SetActive(false);
+    }
+
+    /// <summary>Anuncio grande al centro y contadores de poderes bajo el récord (copias del reloj).</summary>
+    void CrearTextosPoder()
+    {
+        if (textoHora == null) return;
+
+        if (_textoAnuncioPoder == null)
+        {
+            Transform raiz = textoHora.canvas != null ? textoHora.canvas.transform : textoHora.transform.parent;
+            _textoAnuncioPoder = Instantiate(textoHora, raiz);
+            _textoAnuncioPoder.name = "TextoAnuncioPoder";
+            RectTransform rt = (RectTransform)_textoAnuncioPoder.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.68f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = Vector2.zero;
+            rt.sizeDelta = new Vector2(1400f, 260f);
+            rt.localScale = Vector3.one;
+            _textoAnuncioPoder.enableAutoSizing = false;
+            _textoAnuncioPoder.fontSize = textoHora.fontSize * 2.3f;
+            _textoAnuncioPoder.alignment = TextAlignmentOptions.Center;
+            _textoAnuncioPoder.enableWordWrapping = true;
+            EstiloTextoPoder(_textoAnuncioPoder);
+        }
+
+        if (_textoPoderesActivos == null)
+        {
+            // Hijo directo del canvas (encima de todo el HUD), justo debajo del récord
+            Transform raiz = textoHora.canvas != null ? textoHora.canvas.transform : textoHora.transform.parent;
+            RectTransform orig = (RectTransform)textoHora.transform;
+            _textoPoderesActivos = Instantiate(textoHora, raiz);
+            _textoPoderesActivos.name = "TextoPoderesActivos";
+            RectTransform rt = (RectTransform)_textoPoderesActivos.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.localScale = Vector3.one;
+            rt.position = orig.position + orig.TransformVector(Vector3.down * orig.rect.height * 1.55f);
+            rt.sizeDelta = new Vector2(1600f, orig.rect.height * 1.2f);
+            _textoPoderesActivos.enableAutoSizing = false;
+            _textoPoderesActivos.fontSize = textoHora.fontSize * 0.95f;
+            _textoPoderesActivos.alignment = TextAlignmentOptions.Center;
+            _textoPoderesActivos.enableWordWrapping = false;
+            _textoPoderesActivos.overflowMode = TextOverflowModes.Overflow;
+            EstiloTextoPoder(_textoPoderesActivos);
+            _textoPoderesActivos.color = colorTemporizadorPoder;
+            _textoPoderesActivos.outlineWidth = Mathf.Max(contornoTextoPoder, 0.4f);
+        }
+    }
+
+    /// <summary>Dorado brillante con contorno negro (el material se duplica solo para este texto).</summary>
+    void EstiloTextoPoder(TextMeshProUGUI t)
+    {
+        t.color = colorTextoPoder;
+        t.fontStyle |= FontStyles.Bold;
+        t.outlineColor = new Color32(0, 0, 0, 255);
+        t.outlineWidth = contornoTextoPoder;
+    }
+
+    /// <summary>Lo llama DeliveryZone al entregar bien una laptop dorada: sortea un poder y lo aplica.</summary>
+    public void ActivarPoderAlAzar()
+    {
+        if (!_nivelActivo || !Supervivencia) return;
+
+        List<Poder> opciones = new List<Poder>();
+        foreach (Poder p in System.Enum.GetValues(typeof(Poder)))
+        {
+            if (p == Poder.QuitarPerdidas && _laptopsPerdidas == 0) continue;     // no hay nada que perdonar
+            if (p == Poder.Respiro && _timerActual < segundoMinimoRespiroPoder) continue; // sale más adelante
+            opciones.Add(p);
+        }
+        if (_ultimoPoder.HasValue && opciones.Count > 1) opciones.Remove(_ultimoPoder.Value); // no repetir seguido
+        if (opciones.Count == 0) return;
+
+        Poder elegido = opciones[Random.Range(0, opciones.Count)];
+        _ultimoPoder = elegido;
+
+        string detalle = "";
+        switch (elegido)
+        {
+            case Poder.QuitarPerdidas:
+                int n = Mathf.Min(perdidasQueQuita, _laptopsPerdidas);
+                _laptopsPerdidas -= n;
+                _popPorVidaRecuperada = true;
+                ActualizarUI();
+                detalle = $"-{n} perdida{(n > 1 ? "s" : "")}";
+                break;
+            case Poder.StaminaInfinita:
+                foreach (PlayerMovement m in FindObjectsByType<PlayerMovement>())
+                    m.staminaActual = m.staminaMaxima;
+                PoderesSupervivencia.Activar(elegido, duracionStaminaInfinita);
+                detalle = $"{duracionStaminaInfinita:0} s";
+                break;
+            case Poder.ServidoresRapidos:
+                PoderesSupervivencia.Activar(elegido, duracionServidoresRapidos);
+                detalle = $"{duracionServidoresRapidos:0} s";
+                break;
+            case Poder.LaptopsFaciles:
+                PoderesSupervivencia.Activar(elegido, duracionLaptopsFaciles);
+                detalle = $"{duracionLaptopsFaciles:0} s";
+                break;
+            case Poder.FuegoCongelado:
+                // Además apaga al instante todo lo que ya echaba humo o estaba en llamas
+                foreach (Laptop l in FindObjectsByType<Laptop>())
+                    if (l != null && (l.EstaEnLlamas() || l.EstaEnAdvertencia())) l.ApagarConExtintor();
+                PoderesSupervivencia.Activar(elegido, duracionFuegoCongelado);
+                detalle = $"{duracionFuegoCongelado:0} s";
+                break;
+            case Poder.Respiro:
+                PoderesSupervivencia.Activar(elegido, duracionRespiroPoder);
+                detalle = $"{duracionRespiroPoder:0} s";
+                break;
+            case Poder.ExtintorInfinito:
+                PoderesSupervivencia.Activar(elegido, duracionExtintorInfinito);
+                detalle = $"{duracionExtintorInfinito:0} s";
+                break;
+            case Poder.ReparacionRapida:
+                PoderesSupervivencia.Activar(elegido, duracionReparacionRapida);
+                detalle = $"x{factorReparacionRapida:0} - {duracionReparacionRapida:0} s";
+                break;
+        }
+
+        Debug.Log($"GameManager: ✨ Poder de laptop dorada — {PoderesSupervivencia.Nombre(elegido)} ({detalle})");
+        AnunciarPoder($"¡{PoderesSupervivencia.Nombre(elegido)}!\n<size=60%>{detalle}</size>");
+    }
+
+    void AnunciarPoder(string texto)
+    {
+        CrearTextosPoder();
+        if (_textoAnuncioPoder == null) return;
+        _textoAnuncioPoder.text = texto;
+        _textoAnuncioPoder.alpha = 1f;
+        _textoAnuncioPoder.gameObject.SetActive(true);
+        _timerAnuncioPoder = duracionAnuncioPoder;
+        HacerPopContador(_textoAnuncioPoder.transform, ref _popPoder);
+        AudioManager.Confirmar();
+    }
+
+    /// <summary>Cada frame: desvanecer el anuncio y actualizar los contadores de poderes activos.</summary>
+    void ActualizarHudPoderes()
+    {
+        if (_textoAnuncioPoder != null && _timerAnuncioPoder > 0f)
+        {
+            _timerAnuncioPoder -= Time.deltaTime;
+            _textoAnuncioPoder.alpha = Mathf.Clamp01(_timerAnuncioPoder / 0.5f); // se desvanece el último medio segundo
+            if (_timerAnuncioPoder <= 0f) _textoAnuncioPoder.gameObject.SetActive(false);
+        }
+
+        if (_textoPoderesActivos == null) return;
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        foreach (Poder p in System.Enum.GetValues(typeof(Poder)))
+        {
+            float r = PoderesSupervivencia.Restante(p);
+            if (r <= 0f) continue;
+            if (sb.Length > 0) sb.Append("   ");
+            sb.Append(PoderesSupervivencia.NombreCorto(p)).Append(' ').Append(Mathf.CeilToInt(r)).Append('s');
+        }
+        bool hay = sb.Length > 0;
+        if (_textoPoderesActivos.gameObject.activeSelf != hay) _textoPoderesActivos.gameObject.SetActive(hay);
+        if (hay)
+        {
+            _textoPoderesActivos.text = sb.ToString();
+            // Late suavemente para llamar la atención
+            float latido = 1f + Mathf.Sin(Time.time * 6f) * 0.05f;
+            _textoPoderesActivos.transform.localScale = Vector3.one * latido;
         }
     }
 

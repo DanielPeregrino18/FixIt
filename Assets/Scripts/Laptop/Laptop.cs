@@ -241,6 +241,7 @@ public class Laptop : MonoBehaviour, IExtinguishable
     void ActualizarFuego()
     {
         if (GameManager.Instance != null && !GameManager.Instance.incendiosActivos) return;
+        if (PoderesSupervivencia.Activo(Poder.FuegoCongelado)) return; // poder: nada se calienta ni avanza
         if (_estadoFuego == EstadoFuego.Cenizas) return;
         if (_bloqueadaTemp) return;
 

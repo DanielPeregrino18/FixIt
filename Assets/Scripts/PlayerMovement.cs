@@ -170,7 +170,11 @@ public class PlayerMovement : MonoBehaviour
         bool estaMoviendose = movement != Vector3.zero;
         _sprintando = quiereSprintar && estaMoviendose && staminaActual > 0f;
 
-        if (_sprintando)
+        if (_sprintando && PoderesSupervivencia.Activo(Poder.StaminaInfinita))
+        {
+            staminaActual = staminaMaxima; // poder de la laptop dorada: no se gasta
+        }
+        else if (_sprintando)
         {
             staminaActual -= consumoPorSegundo * Time.deltaTime;
             staminaActual = Mathf.Clamp(staminaActual, 0f, staminaMaxima);

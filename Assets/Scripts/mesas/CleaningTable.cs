@@ -369,14 +369,14 @@ public class CleaningTable : InteractableTable
         _movimientosCompletados++;
         ActualizarBarra();
 
-        if (_movimientosCompletados >= movimientosRequeridos)
+        if (_movimientosCompletados >= PoderesSupervivencia.Requeridos(movimientosRequeridos))
             CompletarLimpieza();
     }
 
     void ActualizarBarra()
     {
         if (barraRelleno != null)
-            barraRelleno.fillAmount = (float)_movimientosCompletados / movimientosRequeridos;
+            barraRelleno.fillAmount = (float)_movimientosCompletados / PoderesSupervivencia.Requeridos(movimientosRequeridos);
     }
 
     /// <summary>

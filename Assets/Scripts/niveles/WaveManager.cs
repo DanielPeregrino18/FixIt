@@ -76,11 +76,21 @@ public class WaveManager : MonoBehaviour
     [Tooltip("A partir de este segundo se incendian dos servidores a la vez")]
     public float segundoServidoresDobles = 720f;
 
+    [Header("Supervivencia — laptop dorada")]
+    [Tooltip("Segundo a partir del cual puede salir la primera laptop dorada")]
+    public float segundoPrimeraDorada = 120f;
+    [Tooltip("Segundos mínimos entre una dorada y la siguiente")]
+    public float intervaloMinimoDorada = 90f;
+    [Tooltip("Probabilidad de que una laptop sea dorada (cuando ya se puede)")]
+    [Range(0f, 1f)] public float probabilidadDorada = 0.25f;
+    public Color colorDorado = new Color(1f, 0.78f, 0.15f, 1f);
+
     [Header("Materiales de color (uno por laptop)")]
     public Material[] materialesColor;
 
     // ── Estado interno ────────────────────────────────────────────────────────
     private NivelData _nivelActual;
+    private float _proximaDoradaPosible = 0f;
     // Lista final de laptops de cada oleada (ya escalada), calculada una vez al cargar el nivel
     private readonly Dictionary<OleadaData, List<string>> _laptopsPorOleada = new Dictionary<OleadaData, List<string>>();
 
@@ -212,6 +222,7 @@ public class WaveManager : MonoBehaviour
 
         Debug.Log($"WaveManager: Supervivencia iniciada con {jugadores} jugador(es), multiplicador ×{mult}.");
 
+        _proximaDoradaPosible = segundoPrimeraDorada;
         float proximaOleada = primeraOleadaSupervivencia;
         float proximoServidor = primerServidorSupervivencia;
         int incendiosServidor = 0;
@@ -226,6 +237,10 @@ public class WaveManager : MonoBehaviour
 
             if (GameManager.Instance != null)
                 GameManager.Instance.incendiosActivos = tDif >= segundoIncendiosLaptops;
+
+            // Poder "Respiro": la siguiente oleada espera a que termine
+            if (t >= proximaOleada && PoderesSupervivencia.Activo(Poder.Respiro))
+                proximaOleada = t + PoderesSupervivencia.Restante(Poder.Respiro) + 2f;
 
             // ── Oleada ────────────────────────────────────────────────────────
             if (t >= proximaOleada)
@@ -288,6 +303,8 @@ public class WaveManager : MonoBehaviour
 
     string ElegirTipoSupervivencia(float segundos)
     {
+        if (PoderesSupervivencia.Activo(Poder.LaptopsFaciles)) return "facil";
+
         float min = segundos / 60f;
         int filas = _tablaTipos.GetLength(0);
         int a = filas - 1, b = filas - 1;
@@ -310,6 +327,16 @@ public class WaveManager : MonoBehaviour
             r -= pesos[j];
         }
         return "facil";
+    }
+
+    /// <summary>¿Esta laptop sale dorada? Nunca dos a la vez y con un mínimo de tiempo entre ellas.</summary>
+    bool TocaDorada()
+    {
+        float t = GameManager.Instance != null ? GameManager.Instance.TiempoTranscurrido : 0f;
+        if (t < _proximaDoradaPosible || LaptopDorada.Activas.Count > 0) return false;
+        if (Random.value >= probabilidadDorada) return false;
+        _proximaDoradaPosible = t + intervaloMinimoDorada;
+        return true;
     }
 
     /// <summary>Incendia un servidor al azar de los que están tranquilos. False si no hay ninguno libre.</summary>
@@ -378,6 +405,9 @@ public class WaveManager : MonoBehaviour
 
             for (int i = 0; i < enEstaRafaga; i++)
             {
+                // Poder "Respiro": las ráfagas pendientes también esperan
+                while (PoderesSupervivencia.Activo(Poder.Respiro)) yield return null;
+
                 SpawnLaptop(total[indice]);
                 indice++;
 
@@ -443,6 +473,10 @@ public class WaveManager : MonoBehaviour
     {
         if (laptopPrefab == null || spawnPoint == null) return;
 
+        // Supervivencia: de vez en cuando sale una laptop dorada (problemas de una media)
+        bool dorada = ModoSupervivencia.Activo && TocaDorada();
+        if (dorada) tipo = "media";
+
         GameObject obj = Instantiate(laptopPrefab, spawnPoint.position, laptopPrefab.transform.rotation);
 
         Laptop laptopScript = obj.GetComponent<Laptop>();
@@ -454,6 +488,12 @@ public class WaveManager : MonoBehaviour
             MeshRenderer renderer = obj.GetComponentInChildren<MeshRenderer>();
             if (renderer != null)
                 renderer.material = materialesColor[Random.Range(0, materialesColor.Length)];
+        }
+
+        if (dorada)
+        {
+            obj.AddComponent<LaptopDorada>().Configurar(colorDorado);
+            Debug.Log("WaveManager: ✨ ¡Laptop dorada!");
         }
 
         // NOTA: NO se llama GameManager.RegistrarLaptopLlegada() aquí — eso

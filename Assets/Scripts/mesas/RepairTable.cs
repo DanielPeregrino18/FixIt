@@ -254,13 +254,13 @@ public class RepairTable : InteractableTable
         _pulsacionesCompletadas++;
         AudioManager.Golpe();
         ActualizarBarra();
-        Debug.Log($"RepairTable: Pulsación {_pulsacionesCompletadas}/{pulsacionesRequeridas}");
+        Debug.Log($"RepairTable: Pulsación {_pulsacionesCompletadas}/{PoderesSupervivencia.Requeridos(pulsacionesRequeridas)}");
 
         // Disparar el martillazo — una sola vez por cada pulsación
         if (_jugadorReparando != null && _jugadorReparando.anim != null)
             _jugadorReparando.anim.SetTrigger("Martillazo");
 
-        if (_pulsacionesCompletadas >= pulsacionesRequeridas)
+        if (_pulsacionesCompletadas >= PoderesSupervivencia.Requeridos(pulsacionesRequeridas))
             CompletarReparacion();
     }
 
@@ -321,7 +321,7 @@ public class RepairTable : InteractableTable
     void ActualizarBarra()
     {
         if (barraRelleno != null)
-            barraRelleno.fillAmount = (float)_pulsacionesCompletadas / pulsacionesRequeridas;
+            barraRelleno.fillAmount = (float)_pulsacionesCompletadas / PoderesSupervivencia.Requeridos(pulsacionesRequeridas);
     }
 
     /// <summary>Resetea la mesa por completo al iniciar un nivel nuevo.</summary>

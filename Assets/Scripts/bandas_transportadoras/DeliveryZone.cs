@@ -78,6 +78,10 @@ public class DeliveryZone : InteractableTable
             {
                 GameManager.Instance.RegistrarLaptopEntregada();
                 Debug.Log("DeliveryZone: ✅ Laptop entregada correctamente.");
+
+                // Supervivencia: la laptop dorada da un poder al azar
+                if (laptop.GetComponent<LaptopDorada>() != null)
+                    GameManager.Instance.ActivarPoderAlAzar();
             }
             else
             {
