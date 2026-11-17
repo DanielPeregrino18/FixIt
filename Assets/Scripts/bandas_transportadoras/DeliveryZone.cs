@@ -7,6 +7,21 @@ using UnityEngine;
 /// </summary>
 public class DeliveryZone : InteractableTable
 {
+    [Header("Zona sin acceso (para piezas lanzadas)")]
+    [Tooltip("Crea al iniciar una pared invisible sobre la entrega: lo lanzado rebota ahí y no se pierde detrás")]
+    public bool crearZonaSinAcceso = true;
+    public float alturaZonaSinAcceso = 4f;
+    [Tooltip("Qué tan ancha es la pared alrededor de la entrega (metros)")]
+    public float margenZonaSinAcceso = 0.5f;
+
+    void Start()
+    {
+        if (!crearZonaSinAcceso) return;
+        ZonaSinAcceso zona = ZonaSinAcceso.CrearSobre(gameObject, alturaZonaSinAcceso, margenZonaSinAcceso);
+        // Solo pared: con el margen ancho puede tocar el piso frente a la entrega, donde sí caminan
+        if (zona != null) zona.destruirLoQueCaiga = false;
+    }
+
     [Header("Punto donde se coloca la laptop en la banda")]
     public Transform tableSocket;
     [Tooltip("Qué tanto se aplasta la laptop al caer en la banda (squash & stretch). 0 = nada")]

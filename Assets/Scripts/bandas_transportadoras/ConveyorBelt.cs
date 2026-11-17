@@ -10,6 +10,15 @@ public class ConveyorBelt : MonoBehaviour
     [Tooltip("Qué tan rápido da el salto de .01 en segundos")]
     public float tiempoEntreSaltos = 0.05f; 
     
+    [Header("Zona sin acceso (para piezas lanzadas)")]
+    [Tooltip("Crea al iniciar una caja invisible sobre la banda: ahí no puede caer una pieza ni el extintor " +
+             "lanzado, y si algo cae, la pieza se pierde y el extintor regresa a su estación")]
+    public bool crearZonaSinAcceso = true;
+    [Tooltip("Cuánto sube la caja por encima de la banda (metros)")]
+    public float alturaZonaSinAcceso = 4f;
+    [Tooltip("Margen extra alrededor de la banda (metros)")]
+    public float margenZonaSinAcceso = 0.1f;
+
     private MeshRenderer meshRenderer;
 
     // El desplazamiento de la textura se guarda en un MaterialPropertyBlock (vive en el renderer,
@@ -24,6 +33,8 @@ public class ConveyorBelt : MonoBehaviour
 
     void Start()
     {
+        if (crearZonaSinAcceso) ZonaSinAcceso.CrearSobre(gameObject, alturaZonaSinAcceso, margenZonaSinAcceso);
+
         // CAMBIO CRÍTICO AQUÍ: Le decimos que busque en los objetos "hijos"
         meshRenderer = GetComponentInChildren<MeshRenderer>();
 

@@ -93,6 +93,9 @@ public class ExtinguisherStation : InteractableTable
     /// sin importar dónde haya quedado (suelo, mesa, mano de un jugador).
     /// Llamado por WaveManager al iniciar/reiniciar un nivel.
     /// </summary>
+    /// <summary>¿Este extintor es el que creó esta estación?</summary>
+    public bool EsSuExtintor(GameObject extintor) => extintor != null && extintor == _extintorGenerado;
+
     public void ResetearExtintor()
     {
         if (_extintorGenerado == null) return;

@@ -148,6 +148,10 @@ public class PiezaLanzada : MonoBehaviour
     {
         motivo = null;
 
+        // 0) Nunca en una zona sin acceso (encima de las bandas): ahí nadie podría recogerla
+        if (ZonaSinAcceso.Contiene(new Vector3(punto.x, sueloY + 0.3f, punto.z), 0.35f))
+        { motivo = "zona sin acceso (bandas)"; return false; }
+
         // 1) Nada sólido ocupando ese lugar (cubre estar dentro de una mesa o pegado a ella)
         Vector3 centro = new Vector3(punto.x, sueloY + 0.45f, punto.z);
         foreach (Collider c in Physics.OverlapSphere(centro, 0.3f, ~0, QueryTriggerInteraction.Ignore))
@@ -189,6 +193,13 @@ public class PiezaLanzada : MonoBehaviour
             if (h.collider.GetComponentInParent<InteractableTable>() != null) continue;
             if (h.distance < masCercano) { masCercano = h.distance; mejor = h; }
         }
+        // Las zonas sin acceso (encima de las bandas y la entrega) son paredes invisibles para lo lanzado
+        foreach (RaycastHit h in Physics.SphereCastAll(desde, 0.15f, dir, distancia, 1 << 2, QueryTriggerInteraction.Collide))
+        {
+            if (h.collider.GetComponent<ZonaSinAcceso>() == null) continue;
+            if (h.distance < masCercano) { masCercano = h.distance; mejor = h; }
+        }
+
         // Si ya empezaba pegado a algo (jugador contra la pared), Unity da distancia 0:
         // se trata como choque inmediato y la pieza rebota hacia atrás.
         if (masCercano < float.MaxValue && mejor.distance <= 0f) mejor.normal = -dir;
