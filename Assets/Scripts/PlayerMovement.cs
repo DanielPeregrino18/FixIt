@@ -104,6 +104,9 @@ public class PlayerMovement : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
 
+        // Atravesar objetos sueltos y no quedarse encima de las mesas
+        if (GetComponent<AntiEscalada>() == null) gameObject.AddComponent<AntiEscalada>();
+
         // Los pies: la parte de abajo del collider del jugador
         Collider col = GetComponent<Collider>();
         _alturaPies = col != null ? col.bounds.min.y - transform.position.y : 0f;
