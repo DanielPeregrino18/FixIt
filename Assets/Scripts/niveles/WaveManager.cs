@@ -119,6 +119,17 @@ public class WaveManager : MonoBehaviour
             }
         }
 
+        // Puertas corredizas: la de servidores solo funciona si el nivel trae servidores; la de
+        // almacenes, si pide piezas (laptops que no son "facil") o tiene incendios (extintor)
+        bool hayServidores = datos.servidores != null && datos.servidores.Count > 0;
+        bool hayPiezasOIncendios = datos.incendios;
+        if (datos.oleadas != null)
+            foreach (OleadaData o in datos.oleadas)
+                if (o.laptops != null)
+                    foreach (string tipo in o.laptops)
+                        if (tipo != "facil") hayPiezasOIncendios = true;
+        PuertaCorrediza.ConfigurarNivel(hayServidores, hayPiezasOIncendios);
+
         StartCoroutine(EjecutarOleadas());
 
         // De negro a la escena (tiempo real, funciona aunque el tutorial congele el juego).
