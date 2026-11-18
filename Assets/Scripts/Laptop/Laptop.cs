@@ -58,6 +58,8 @@ public class Laptop : MonoBehaviour, IExtinguishable
 
     [Tooltip("Segundos en llamas antes de calcinarse permanentemente")]
     public float tiempoEnLlamasAntesDeCalcinar = 20f;
+    [Tooltip("Color al que se tiñe la laptop al calcinarse (el rato que queda en pantalla antes de desaparecer)")]
+    public Color colorCalcinada = new Color(0.06f, 0.06f, 0.06f);
 
     [Tooltip("Segundos que el jugador queda bloqueado al recoger en fase de advertencia")]
     public float penalizacionAlRecoger = 2f;
@@ -348,6 +350,7 @@ public class Laptop : MonoBehaviour, IExtinguishable
         if (fuegoParticles != null) fuegoParticles.Stop();
 
         Debug.Log("Laptop: 💀 Calcinada, se pierde.");
+        PintarCalcinada();
 
         AudioManager.ExplosionLaptop();
         ProceduralHead.Susto(transform.position); // los jugadores cercanos se asustan
@@ -356,6 +359,24 @@ public class Laptop : MonoBehaviour, IExtinguishable
             GameManager.Instance.RegistrarLaptopPerdida();
 
         Destroy(gameObject, 1f);
+    }
+
+    /// <summary>
+    /// Tiñe la laptop (y lo que tenga encima) del color de calcinada. Solo modelos 3D:
+    /// partículas, sprites y UI se quedan como están.
+    /// </summary>
+    void PintarCalcinada()
+    {
+        foreach (Renderer r in GetComponentsInChildren<Renderer>())
+        {
+            if (!(r is MeshRenderer) && !(r is SkinnedMeshRenderer)) continue;
+            foreach (Material m in r.materials) // copias propias de esta laptop
+            {
+                if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", colorCalcinada); // URP
+                if (m.HasProperty("_Color")) m.SetColor("_Color", colorCalcinada);
+                if (m.HasProperty("_EmissionColor")) m.SetColor("_EmissionColor", Color.black);
+            }
+        }
     }
 
     IEnumerator PenalizarRecogidaEnAdvertencia(PlayerInteraction player)

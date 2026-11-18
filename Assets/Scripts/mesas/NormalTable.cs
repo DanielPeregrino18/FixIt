@@ -267,6 +267,8 @@ public class NormalTable : InteractableTable
         if (humoInstalacion != null)
             humoInstalacion.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
 
+        AudioManager.CompletarInstalacion(); // corta el sonido de trabajo y suena la confirmación
+
         OcultarManos(_jugadorInstalando, false);
         BloquearMovimiento(_jugadorInstalando, false);
 

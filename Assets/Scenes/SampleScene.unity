@@ -11057,7 +11057,8 @@ MonoBehaviour:
   volumenEntregaIncorrecta: 0.8
   sonidoExpendedora: {fileID: 8300000, guid: 5b28bd40d5a9cb24d84ecd613ff028ab, type: 3}
   volumenExpendedora: 0.7
-  sonidoInstalacion: {fileID: 8300000, guid: 883f45af52978ac48b56da747cffb081, type: 3}
+  sonidoInstalacion: {fileID: 8300000, guid: 6bd4c619d0a445d48cecb5beb1381452, type: 3}
+  sonidoConfirmacionInstalacion: {fileID: 8300000, guid: b40d1234a5354e2d8f0fce60294bf53e, type: 3}
   volumenInstalacion: 0.5
   sonidoLanzar: {fileID: 8300000, guid: d634d1f2b3172b24aaa39fe083232d0f, type: 3}
   volumenLanzar: 0.7

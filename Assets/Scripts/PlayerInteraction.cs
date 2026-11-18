@@ -195,7 +195,11 @@ public class PlayerInteraction : MonoBehaviour
 
         if (interactAction != null && interactAction.WasPressedThisFrame())
         {
-            if (_currentTable != null)
+            // Con las manos libres, un objeto tirado delante de la mesa se recoge primero
+            // (DetectAhead solo lo reporta si está más cerca que la mesa).
+            bool recogerItemPrimero = _currentItemOnFloor != null && !isHoldingItem;
+
+            if (_currentTable != null && !recogerItemPrimero)
             {
                 bool manosLibresAntes = !isHoldingItem;
                 _currentTable.Interact(this);
@@ -249,59 +253,61 @@ public class PlayerInteraction : MonoBehaviour
 
     // ── Detección ─────────────────────────────────────────────────────────────
 
+    private readonly RaycastHit[] _hitsDeteccion = new RaycastHit[16];
+
     void DetectAhead()
     {
-        RaycastHit hit;
-        bool hasHit = Physics.BoxCast(
+        // Se toman todos los interactuables enfrente (no solo el primero) para que una pieza
+        // tirada entre el personaje y la mesa no tape la mesa.
+        int n = Physics.BoxCastNonAlloc(
             castPoint.position, boxSize / 2,
-            castPoint.forward, out hit,
+            castPoint.forward, _hitsDeteccion,
             castPoint.rotation, castDistance,
             interactableLayer);
+        System.Array.Sort(_hitsDeteccion, 0, n, PorDistancia.Instancia);
 
-        // El BoxCast solo mira la capa de interactuables, así que "ve" a través de las paredes.
-        // Si hay una pared (o algo sólido) en medio, no cuenta.
-        if (hasHit && HayParedEnMedio(hit)) hasHit = false;
+        InteractableTable mesaVista = null;
+        GameObject itemVisto = null;
 
-        if (hasHit)
+        for (int i = 0; i < n && mesaVista == null; i++)
         {
-            InteractableTable seenTable = hit.collider.GetComponent<InteractableTable>();
-            if (seenTable != null)
-            {
-                ClearItemOnFloor();
-                if (seenTable != _currentTable)
-                {
-                    if (_currentTable != null) _currentTable.OnLookExit(playerId);
-                    _currentTable = seenTable;
-                    _currentTable.OnLookEnter(playerId);
-                }
-                return;
-            }
+            RaycastHit hit = _hitsDeteccion[i];
+            if (hit.collider == null) continue;
+
+            // El BoxCast solo mira la capa de interactuables, así que "ve" a través de las paredes.
+            // Si hay una pared (o algo sólido) en medio, no cuenta.
+            if (HayParedEnMedio(hit)) continue;
+
+            InteractableTable t = hit.collider.GetComponent<InteractableTable>();
+            if (t != null) { mesaVista = t; break; }
+
+            if (itemVisto != null) continue; // ya hay un objeto más cerca; solo falta la mesa detrás
 
             LaptopController seenLaptop = hit.collider.GetComponent<LaptopController>();
-            if (seenLaptop != null && seenLaptop.isInteractable)
-            {
-                if (_currentTable != null) { _currentTable.OnLookExit(playerId); _currentTable = null; }
-                _currentItemOnFloor = seenLaptop.gameObject;
-                return;
-            }
+            if (seenLaptop != null && seenLaptop.isInteractable) { itemVisto = seenLaptop.gameObject; continue; }
 
             PickableItem seenItem = hit.collider.GetComponent<PickableItem>();
-            if (seenItem != null && seenItem.isInteractable)
-            {
-                if (_currentTable != null) { _currentTable.OnLookExit(playerId); _currentTable = null; }
-                _currentItemOnFloor = seenItem.gameObject;
-                return;
-            }
+            if (seenItem != null && seenItem.isInteractable) itemVisto = seenItem.gameObject;
         }
 
-        if (_currentTable != null) { _currentTable.OnLookExit(playerId); _currentTable = null; }
-        ClearItemOnFloor();
+        if (mesaVista != _currentTable)
+        {
+            if (_currentTable != null) _currentTable.OnLookExit(playerId);
+            _currentTable = mesaVista;
+            if (_currentTable != null) _currentTable.OnLookEnter(playerId);
+        }
+        _currentItemOnFloor = itemVisto;
+    }
+
+    sealed class PorDistancia : System.Collections.Generic.IComparer<RaycastHit>
+    {
+        public static readonly PorDistancia Instancia = new PorDistancia();
+        public int Compare(RaycastHit a, RaycastHit b) => a.distance.CompareTo(b.distance);
     }
 
     void ClearItemOnFloor() => _currentItemOnFloor = null;
 
     private readonly RaycastHit[] _hitsVision = new RaycastHit[16];
-
     /// <summary>
     /// ¿Hay algo sólido entre el personaje y lo que detectó? El rayo sale del centro del personaje
     /// (no del castPoint, que pegado a una pared puede quedar dentro de ella y no la detectaría).
@@ -310,8 +316,12 @@ public class PlayerInteraction : MonoBehaviour
     bool HayParedEnMedio(RaycastHit hit)
     {
         Vector3 origen = new Vector3(transform.position.x, castPoint.position.y, transform.position.z);
-        Vector3 destino = hit.point;
-        if (hit.distance <= 0f || destino == Vector3.zero) destino = hit.collider.bounds.center; // ya estaba encimado
+        // Se apunta al punto del objeto más cercano al personaje (no al hit.point ni al centro):
+        // así, junto a una mesa el rayo es cortísimo desde cualquier lado y no cruza lo que haya
+        // alrededor; y si el objeto está detrás de una pared, su punto más cercano sigue del otro lado.
+        Collider objetivo = hit.collider;
+        bool admiteClosest = !(objetivo is MeshCollider mc) || mc.convex;
+        Vector3 destino = admiteClosest ? objetivo.ClosestPoint(origen) : objetivo.bounds.ClosestPoint(origen);
         destino.y = origen.y;
 
         Vector3 dir = destino - origen;
@@ -323,6 +333,9 @@ public class PlayerInteraction : MonoBehaviour
         {
             Collider c = _hitsVision[i].collider;
             if (c == null || c == hit.collider) continue;
+            // Lo que el rayo toca ya dentro del área del objeto (p. ej. el modelo de la estación
+            // de reparación puesto encima de la mesa) es parte del objeto, no una pared en medio.
+            if (EsAdornoDe(c.bounds, hit.collider.bounds)) continue;
             if (c.transform.IsChildOf(transform)) continue;                 // yo y lo que llevo
             if (c.transform.IsChildOf(hit.collider.transform)) continue;     // partes del mismo objeto
             if (c.GetComponentInParent<InteractableTable>() != null) continue;
@@ -333,6 +346,22 @@ public class PlayerInteraction : MonoBehaviour
             return true; // pared, puerta de vidrio cerrada, etc.
         }
         return false;
+    }
+
+    /// <summary>
+    /// ¿El obstáculo está montado sobre el objeto (su centro cae sobre la huella X/Z del objeto
+    /// y no es mucho más grande)? P. ej. el modelo de la estación de reparación encima de la mesa.
+    /// Una pared o una barra larga no cumplen: son más grandes o su centro queda fuera.
+    /// </summary>
+    static bool EsAdornoDe(Bounds obstaculo, Bounds objeto)
+    {
+        const float margen = 0.1f, holgura = 0.5f;
+        Vector3 c = obstaculo.center;
+        bool centroEncima = c.x >= objeto.min.x - margen && c.x <= objeto.max.x + margen &&
+                            c.z >= objeto.min.z - margen && c.z <= objeto.max.z + margen;
+        bool tamañoParecido = obstaculo.size.x <= objeto.size.x + holgura &&
+                              obstaculo.size.z <= objeto.size.z + holgura;
+        return centroEncima && tamañoParecido;
     }
 
     // ── Objeto bajo los pies ──────────────────────────────────────────────────

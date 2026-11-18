@@ -124,8 +124,10 @@ public class AudioManager : MonoBehaviour
     [Range(0f, 1f)] public float volumenExpendedora = 0.7f;
 
     [Header("Instalar piezas (RAM, HDD y CPU)")]
-    [Tooltip("Suena mientras el jugador mantiene pulsado el botón de instalar. Se corta si lo suelta")]
+    [Tooltip("Suena en bucle mientras el jugador mantiene pulsado el botón de instalar. Se corta si lo suelta. NO debe traer el sonido de confirmación")]
     public AudioClip sonidoInstalacion;
+    [Tooltip("Una vez, justo cuando la pieza termina de instalarse (la confirmación)")]
+    public AudioClip sonidoConfirmacionInstalacion;
     [Tooltip("Volumen propio de este sonido (se multiplica por Volumen Efectos). Bájalo si suena fuerte")]
     [Range(0f, 1f)] public float volumenInstalacion = 0.5f;
 
@@ -289,7 +291,16 @@ public class AudioManager : MonoBehaviour
         Instance._fuenteInstalacion.Stop();
         Instance._fuenteInstalacion.clip = Instance.sonidoInstalacion;
         Instance._fuenteInstalacion.volume = Instance.volumenEfectos * Instance.volumenInstalacion;
+        Instance._fuenteInstalacion.loop = true; // por si la instalación dura más que el clip
         Instance._fuenteInstalacion.Play();
+    }
+
+    /// <summary>La pieza quedó instalada: corta el sonido de trabajo y toca la confirmación.</summary>
+    public static void CompletarInstalacion()
+    {
+        if (Instance == null) return;
+        DetenerInstalacion();
+        Instance.ReproducirEfecto(Instance.sonidoConfirmacionInstalacion, Instance.volumenInstalacion);
     }
 
     /// <summary>Corta el sonido (se llama al soltar el botón y cancelar la instalación).</summary>
